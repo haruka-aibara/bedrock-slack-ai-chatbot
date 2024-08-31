@@ -5,9 +5,13 @@ import json
 import os
 import re
 
-bedrock_region = os.environ.get("BEDROCK_REGION")
+sqs = boto3.client("sqs")
 
-bedrock_runtime = boto3.client("bedrock-runtime", region_name=bedrock_region)
+aws_accoun_id = os.environ.get("ACCOUNT_ID")
+region = os.environ.get("REGION")
+queue = os.environ.get("BACKEND_QUEUE")
+
+sqs_queue_url = f"https://sqs.{region}.amazonaws.com/{aws_account_id}/{queue_name}"
 
 # アプリの初期化
 app = App(
@@ -51,9 +55,18 @@ def generate_answer(input_text):
 # Slackイベントハンドラー：Slackアプリがメンションされた時
 @app.event("app_mention")
 def handle_app_mention_events(event, say):
+    result = say(text=f"少々お待ちください...")
+
+    channel_id = event["channel"]
     input_text = re.sub("<@.+>", "", event["text"]).strip()
-    output_text = generate_answer(input_text)
-    say(output_text)
+
+    sqs.send_message(
+        QueueUrl=sqs_queue_url,
+        MessageBody=json.dumps({
+            "channel_id": channel_id,
+            "input_text": input_text,
+        }),
+    )
 
 # Lambdaイベントハンドラー
 def lambda_handler(event, context):

@@ -29,13 +29,15 @@ resource "aws_lambda_function" "slack_bolt_app" {
   source_code_hash = data.archive_file.lambda_code.output_base64sha256
   role             = aws_iam_role.slack_bolt_app_role.arn
   layers           = [aws_lambda_layer_version.slack_bolt.arn]
-  timeout = 30
+  timeout          = 3
 
   environment {
     variables = {
       SLACK_BOT_TOKEN      = var.slack_bot_token
       SLACK_SIGNING_SECRET = var.slack_signing_secret
-      BEDROCK_REGION = data.aws_region.current.name
+      BACKEND_QUEUE        = "${local.app_name}-queue"
+      ACCOUNT_ID           = data.aws_caller_identity.current.account_id
+      REGION               = data.aws_region.current.name
     }
   }
 }
@@ -69,14 +71,14 @@ resource "aws_iam_policy" "lambda_basic_execution" {
 # カスタムポリシードキュメントの定義
 data "aws_iam_policy_document" "lambda_basic_execution" {
   statement {
-    sid = "loggroup"
+    sid       = "loggroup"
     effect    = "Allow"
     actions   = ["logs:CreateLogGroup"]
     resources = ["arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"]
   }
 
   statement {
-    sid = "logevents"
+    sid    = "logevents"
     effect = "Allow"
     actions = [
       "logs:CreateLogStream",
@@ -94,23 +96,24 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
 }
 
 # IAMポリシーリソース
-resource "aws_iam_policy" "lambda_bedrock" {
-  name   = "${local.app_name}-bedrock-policy"
-  path   = "/service-role/"
-  policy = data.aws_iam_policy_document.lambda_bedrock.json
+resource "aws_iam_policy" "lambda_sqs" {
+  name   = "${local.app_name}-lambda-sqs-policy"
+  policy = data.aws_iam_policy_document.lambda_sqs.json
 }
 
 # カスタムポリシードキュメントの定義
-data "aws_iam_policy_document" "lambda_bedrock" {
+data "aws_iam_policy_document" "lambda_sqs" {
   statement {
-    sid = "bedrock"
-    effect    = "Allow"
-    actions   = ["bedrock:InvokeModel"]
-    resources = ["*"]
+    sid     = "bedrock"
+    effect  = "Allow"
+    actions = ["sqs:SendMessage"]
+    resources = [
+      aws_sqs_queue.bedrock_backend.arn
+    ]
   }
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_bedrock" {
+resource "aws_iam_role_policy_attachment" "lambda_sqs" {
   role       = aws_iam_role.slack_bolt_app_role.name
-  policy_arn = aws_iam_policy.lambda_bedrock.arn
+  policy_arn = aws_iam_policy.lambda_sqs.arn
 }
