@@ -36,5 +36,14 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# personal
+# Ignore lock
+.terraform.lock.hcl
+
+# credentials
 secret*
+
+# archive files
+archives*
+
+# lambda_layer
+lambda_layer*
