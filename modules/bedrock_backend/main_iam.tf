@@ -43,7 +43,7 @@ data "aws_iam_policy_document" "lambda_bedrock_backend" {
     ]
   }
 
-    statement {
+  statement {
     sid       = "loggroup"
     effect    = "Allow"
     actions   = ["logs:CreateLogGroup"]

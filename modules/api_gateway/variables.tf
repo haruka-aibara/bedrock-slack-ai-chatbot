@@ -1,5 +1,5 @@
 variable "integration_uri" {
-  type = string  
+  type = string
 }
 
 variable "lambda_function_name" {

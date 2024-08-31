@@ -38,7 +38,7 @@ data "aws_iam_policy_document" "lambda_basic_execution" {
     ]
   }
 
-    statement {
+  statement {
     sid     = "sqs"
     effect  = "Allow"
     actions = ["sqs:SendMessage"]

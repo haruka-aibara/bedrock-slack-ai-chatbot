@@ -3,5 +3,5 @@ output "lambda_function_arn" {
 }
 
 output "lambda_function_name" {
-    value = aws_lambda_function.slack_bolt_app.function_name
+  value = aws_lambda_function.slack_bolt_app.function_name
 }
