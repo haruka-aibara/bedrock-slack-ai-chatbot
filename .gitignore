@@ -47,3 +47,7 @@ archives*
 
 # lambda_layer
 lambda_layer*
+
+# bin
+modules/bedrock_backend/lambda_layer
+modules/*/lambda_function/*.zip

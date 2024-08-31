@@ -8,7 +8,7 @@ resource "aws_apigatewayv2_api" "slack_bot_api" {
 # Lambda統合の設定
 resource "aws_apigatewayv2_integration" "lambda_integration" {
   api_id                 = aws_apigatewayv2_api.slack_bot_api.id
-  integration_uri        = aws_lambda_function.slack_bolt_app.arn
+  integration_uri        = var.integration_uri
   integration_type       = "AWS_PROXY"
   integration_method     = "POST"
   payload_format_version = "2.0"
@@ -32,7 +32,7 @@ resource "aws_apigatewayv2_stage" "default" {
 resource "aws_lambda_permission" "api_gateway_lambda" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.slack_bolt_app.function_name
+  function_name = var.lambda_function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.slack_bot_api.execution_arn}/*/*/slack/events"
 }
