@@ -11,4 +11,7 @@ https://dev.classmethod.jp/articles/amazon-bedrock-slack-chat-bot-part2/
  - Lambda レイヤー
  - API Gateway
 
-env の SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET はご自身の Slack App の値を入れて使用します。
+variables の SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET はご自身の Slack App の値を入れて使用します。
+
+@app_name とメンションすれば、回答が返ってきます。
+![image](https://github.com/user-attachments/assets/e81fcbce-7f46-4b91-9257-50a5902e3bb8)
