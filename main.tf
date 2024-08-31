@@ -12,6 +12,7 @@ module "bedrock_backend" {
 
   app_name        = local.app_name
   slack_bot_token = var.slack_bot_token
+  slack_signing_secret = var.slack_signing_secret
   queue_arn       = module.sqs.queue_arn
 }
 
