@@ -29,11 +29,13 @@ resource "aws_lambda_function" "slack_bolt_app" {
   source_code_hash = data.archive_file.lambda_code.output_base64sha256
   role             = aws_iam_role.slack_bolt_app_role.arn
   layers           = [aws_lambda_layer_version.slack_bolt.arn]
+  timeout = 30
 
   environment {
     variables = {
       SLACK_BOT_TOKEN      = var.slack_bot_token
       SLACK_SIGNING_SECRET = var.slack_signing_secret
+      BEDROCK_REGION = data.aws_region.current.name
     }
   }
 }
@@ -67,19 +69,21 @@ resource "aws_iam_policy" "lambda_basic_execution" {
 # カスタムポリシードキュメントの定義
 data "aws_iam_policy_document" "lambda_basic_execution" {
   statement {
+    sid = "loggroup"
     effect    = "Allow"
     actions   = ["logs:CreateLogGroup"]
     resources = ["arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"]
   }
 
   statement {
+    sid = "logevents"
     effect = "Allow"
     actions = [
       "logs:CreateLogStream",
       "logs:PutLogEvents"
     ]
     resources = [
-      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${aws_lambda_function.slack_bolt_app.function_name}:*"
+      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.app_name}:*"
     ]
   }
 }
@@ -87,4 +91,26 @@ data "aws_iam_policy_document" "lambda_basic_execution" {
 resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
   role       = aws_iam_role.slack_bolt_app_role.name
   policy_arn = aws_iam_policy.lambda_basic_execution.arn
+}
+
+# IAMポリシーリソース
+resource "aws_iam_policy" "lambda_bedrock" {
+  name   = "${local.app_name}-bedrock-policy"
+  path   = "/service-role/"
+  policy = data.aws_iam_policy_document.lambda_bedrock.json
+}
+
+# カスタムポリシードキュメントの定義
+data "aws_iam_policy_document" "lambda_bedrock" {
+  statement {
+    sid = "bedrock"
+    effect    = "Allow"
+    actions   = ["bedrock:InvokeModel"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_bedrock" {
+  role       = aws_iam_role.slack_bolt_app_role.name
+  policy_arn = aws_iam_policy.lambda_bedrock.arn
 }
