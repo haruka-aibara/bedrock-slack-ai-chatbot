@@ -51,6 +51,18 @@ def lambda_handler(event, context):
     channel_id = body.get("channel_id")
     input_text = body.get("input_text")
 
+    # 入力テキストが空でないかチェック
+    if not input_text or input_text.strip() == "":
+        error_message = "入力テキストが空です。有効なテキストを入力してください。"
+        client.chat_postMessage(
+            channel=channel_id,
+            text=error_message,
+        )
+        return {
+            'statusCode': 400,
+            'body': json.dumps('Empty input text')
+        }
+
     # Bedrockを呼び出して入力テキストに対する応答テキストを生成する
     output_text = generate_answer(input_text)
 
@@ -59,4 +71,8 @@ def lambda_handler(event, context):
         channel=channel_id,
         text=output_text,
     )
-    
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Message sent successfully')
+    }
