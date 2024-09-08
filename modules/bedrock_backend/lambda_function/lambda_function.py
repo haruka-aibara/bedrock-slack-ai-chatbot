@@ -22,11 +22,13 @@ def generate_answer(input_text):
     ]
 
     # リクエストBODYをセット
-    request_body = json.dumps({
-        "messages": messages,
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 1000,
-    })
+    request_body = json.dumps(
+        {
+            "messages": messages,
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 1000,
+        }
+    )
 
     # Bedrock APIを呼び出す
     response = bedrock_runtime.invoke_model(
@@ -58,10 +60,7 @@ def lambda_handler(event, context):
             channel=channel_id,
             text=error_message,
         )
-        return {
-            'statusCode': 400,
-            'body': json.dumps('Empty input text')
-        }
+        return {"statusCode": 400, "body": json.dumps("Empty input text")}
 
     # Bedrockを呼び出して入力テキストに対する応答テキストを生成する
     output_text = generate_answer(input_text)
@@ -72,7 +71,4 @@ def lambda_handler(event, context):
         text=output_text,
     )
 
-    return {
-        'statusCode': 200,
-        'body': json.dumps('Message sent successfully')
-    }
+    return {"statusCode": 200, "body": json.dumps("Message sent successfully")}

@@ -20,6 +20,7 @@ app = App(
     process_before_response=True,
 )
 
+
 # Slackイベントハンドラー：Slackアプリがメンションされた時
 @app.event("app_mention")
 def handle_app_mention_events(event, say):
@@ -30,10 +31,12 @@ def handle_app_mention_events(event, say):
 
     sqs.send_message(
         QueueUrl=sqs_queue_url,
-        MessageBody=json.dumps({
-            "channel_id": channel_id,
-            "input_text": input_text,
-        }),
+        MessageBody=json.dumps(
+            {
+                "channel_id": channel_id,
+                "input_text": input_text,
+            }
+        ),
     )
 
 
