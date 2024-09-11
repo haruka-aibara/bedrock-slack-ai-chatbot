@@ -21,3 +21,7 @@ variables の SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET はご自身の Slack App �
 
 @app_name とメンションすれば、回答が返ってきます。
 ![image](https://github.com/user-attachments/assets/e81fcbce-7f46-4b91-9257-50a5902e3bb8)
+
+## 注意事項
+本プロジェクト Apply 後、API gateway のエンドポイントを
+Slack 側の Event Subscriptions - Request URL - {endpoint}/slack/events として登録が必要です。
