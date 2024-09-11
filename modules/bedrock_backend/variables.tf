@@ -18,11 +18,3 @@ variable "slack_signing_secret" {
 variable "queue_arn" {
   type = string
 }
-
-variable "TFC_AWS_PROVIDER_AUTH" {
-  type = string
-}
-
-variable "TFC_AWS_RUN_ROLE_ARN" {
-  type = string
-}
