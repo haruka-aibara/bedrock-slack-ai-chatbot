@@ -39,15 +39,5 @@ terraform.rc
 # Ignore lock
 .terraform.lock.hcl
 
-# credentials
-secret*
-
-# archive files
-archives*
-
-# lambda_layer
-lambda_layer*
-
 # bin
-modules/bedrock_backend/lambda_layer
 modules/*/lambda_function/*.zip
