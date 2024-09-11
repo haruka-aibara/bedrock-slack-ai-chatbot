@@ -36,8 +36,5 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# Ignore lock
-.terraform.lock.hcl
-
 # bin
 modules/*/lambda_function/*.zip
