@@ -1,7 +1,7 @@
 # AWS プロバイダーは実装時のメジャーバージョンの最新以上を使用するよう定義
 terraform {
   cloud {
-    organization = "aibara-ha"
+    organization = "haruka_aibara"
     workspaces {
       name = "bedrock-slack-ai-chatbot"
     }
