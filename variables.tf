@@ -10,11 +10,3 @@ variable "slack_signing_secret" {
   type        = string
   sensitive   = true
 }
-
-variable "TFC_AWS_PROVIDER_AUTH" {
-  type = string
-}
-
-variable "TFC_AWS_RUN_ROLE_ARN" {
-  type = string
-}
