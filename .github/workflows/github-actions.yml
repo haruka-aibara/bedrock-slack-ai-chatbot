@@ -1,0 +1,22 @@
+name: Terraform fmt checker
+
+on: [push]
+
+jobs:
+  terraform-fmt-checker:
+    name: Terraform fmt checker
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: HashiCorp - Setup Terraform
+        uses: hashicorp/setup-terraform@v3.1.2
+
+      - name: Terraform Format
+        run: terraform fmt -recursive -check
