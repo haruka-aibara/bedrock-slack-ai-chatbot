@@ -1,9 +1,10 @@
-from slack_bolt import App
-from slack_bolt.adapter.aws_lambda import SlackRequestHandler
-import boto3
 import json
 import os
 import re
+
+import boto3
+from slack_bolt import App
+from slack_bolt.adapter.aws_lambda import SlackRequestHandler
 
 sqs = boto3.client("sqs")
 
@@ -24,7 +25,7 @@ app = App(
 # Slackイベントハンドラー：Slackアプリがメンションされた時
 @app.event("app_mention")
 def handle_app_mention_events(event, say):
-    result = say(text=f"少々お待ちください...")
+    _ = say(text="少々お待ちください...")
 
     channel_id = event["channel"]
     input_text = re.sub("<@.+>", "", event["text"]).strip()
