@@ -1,8 +1,8 @@
-from slack_sdk import WebClient
-import boto3
 import json
 import os
 
+import boto3
+from slack_sdk import WebClient
 
 region = os.environ.get("REGION")
 
@@ -66,7 +66,7 @@ def lambda_handler(event, context):
     output_text = generate_answer(input_text)
 
     # Slackへ応答テキストを書き込む
-    result = client.chat_postMessage(
+    _ = client.chat_postMessage(
         channel=channel_id,
         text=output_text,
     )
