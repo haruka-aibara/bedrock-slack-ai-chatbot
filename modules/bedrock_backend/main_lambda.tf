@@ -9,7 +9,7 @@ resource "aws_lambda_layer_version" "slack_bolt" {
 # Bedrock Backend
 resource "aws_lambda_function" "slack_bolt_app_bedrock_backend" {
   filename         = data.archive_file.lambda_bedrock_code.output_path
-  function_name    = "${var.app_name}-bedrock-backend"
+  function_name    = "${var.app_name}_bedrock-backend"
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.12"
   architectures    = ["x86_64"]
