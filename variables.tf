@@ -10,7 +10,6 @@ variable "region" {
   default     = "ap-northeast-1"
 }
 
-# Slack認証情報用の変数を定義
 variable "slack_bot_token" {
   description = "Slack Bot User OAuth Token"
   type        = string

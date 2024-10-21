@@ -54,14 +54,11 @@ resource "aws_iam_role_policy_attachment" "slack_ai_chatbot" {
   policy_arn = aws_iam_policy.slack_ai_chatbot.arn
 }
 
-# ==========================================================================================
-# IAMロールの定義
 resource "aws_iam_role" "bedrock_backend" {
   name               = "${local.project_name}_bedrock-backend-role"
   assume_role_policy = data.aws_iam_policy_document.bedrock_backend_lambda_assume_role.json
 }
 
-# Lambda用のAssume Role Policyを定義するデータブロック
 data "aws_iam_policy_document" "bedrock_backend_lambda_assume_role" {
   statement {
     effect  = "Allow"
@@ -73,7 +70,6 @@ data "aws_iam_policy_document" "bedrock_backend_lambda_assume_role" {
   }
 }
 
-# カスタムポリシードキュメントの定義
 data "aws_iam_policy_document" "bedrock_backend" {
   statement {
     sid    = "sqs"
@@ -119,7 +115,6 @@ data "aws_iam_policy_document" "bedrock_backend" {
   }
 }
 
-# IAMポリシーリソース
 resource "aws_iam_policy" "bedrock_backend" {
   name   = "${local.project_name}_bedrock-backend-policy"
   policy = data.aws_iam_policy_document.bedrock_backend.json

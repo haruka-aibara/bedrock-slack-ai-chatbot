@@ -26,8 +26,6 @@ resource "aws_lambda_function" "slack_ai_chatbot" {
   }
 }
 
-# ===================================================
-
 resource "aws_lambda_layer_version" "bedrock" {
   filename                 = data.archive_file.lambda_bedrock_layer_zip.output_path
   layer_name               = "${local.project_name}_bedrock-backend"
@@ -36,7 +34,6 @@ resource "aws_lambda_layer_version" "bedrock" {
   description              = "lambda layer for ${local.project_name} bedrock backend"
 }
 
-# Bedrock Backend
 resource "aws_lambda_function" "slack_bolt_app_bedrock_backend" {
   filename         = data.archive_file.lambda_bedrock_code.output_path
   function_name    = "${local.project_name}_bedrock-backend"
@@ -55,7 +52,6 @@ resource "aws_lambda_function" "slack_bolt_app_bedrock_backend" {
   }
 }
 
-# Lambda 関数を SQS と統合
 resource "aws_lambda_event_source_mapping" "bedrock" {
   event_source_arn = aws_sqs_queue.slack_ai_chatbot.arn
   function_name    = aws_lambda_function.slack_bolt_app_bedrock_backend.arn
