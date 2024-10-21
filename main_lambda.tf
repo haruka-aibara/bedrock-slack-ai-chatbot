@@ -1,4 +1,4 @@
-resource "aws_lambda_layer_version" "slack_bolt" {
+resource "aws_lambda_layer_version" "slack_ai_chatbot" {
   filename                 = data.archive_file.lambda_layer_zip.output_path
   layer_name               = local.project_name
   compatible_runtimes      = ["python3.12"]
@@ -6,15 +6,15 @@ resource "aws_lambda_layer_version" "slack_bolt" {
   description              = "lambda layer for ${local.project_name}"
 }
 
-resource "aws_lambda_function" "slack_bolt_app" {
+resource "aws_lambda_function" "slack_ai_chatbot" {
   filename         = data.archive_file.lambda_code.output_path
   function_name    = local.project_name
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.12"
   architectures    = ["x86_64"]
   source_code_hash = data.archive_file.lambda_code.output_base64sha256
-  role             = aws_iam_role.slack_bolt_app_role.arn
-  layers           = [aws_lambda_layer_version.slack_bolt.arn]
+  role             = aws_iam_role.slack_ai_chatbot.arn
+  layers           = [aws_lambda_layer_version.slack_ai_chatbot.arn]
   timeout          = 3
 
   environment {
@@ -47,7 +47,7 @@ resource "aws_lambda_function" "slack_bolt_app_bedrock_backend" {
   architectures    = ["x86_64"]
   source_code_hash = data.archive_file.lambda_bedrock_code.output_base64sha256
   role             = aws_iam_role.slack_bolt_app_bedrock_backend_role.arn
-  layers           = [aws_lambda_layer_version.slack_bolt.arn]
+  layers           = [aws_lambda_layer_version.slack_ai_chatbot.arn]
   timeout          = 30
 
   environment {
@@ -60,6 +60,6 @@ resource "aws_lambda_function" "slack_bolt_app_bedrock_backend" {
 
 # Lambda 関数を SQS と統合
 resource "aws_lambda_event_source_mapping" "bedrock" {
-  event_source_arn = aws_sqs_queue.this.arn
+  event_source_arn = aws_sqs_queue.slack_ai_chatbot.arn
   function_name    = aws_lambda_function.slack_bolt_app_bedrock_backend.arn
 }

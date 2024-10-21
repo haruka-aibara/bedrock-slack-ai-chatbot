@@ -1,12 +1,9 @@
-# IAMロールの定義
-resource "aws_iam_role" "slack_bolt_app_role" {
+resource "aws_iam_role" "slack_ai_chatbot" {
   name               = "${local.project_name}-role"
-  path               = "/service-role/"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+  assume_role_policy = data.aws_iam_policy_document.slack_ai_chatbot_lambda_assume_role.json
 }
 
-# Lambda用のAssume Role Policyを定義するデータブロック
-data "aws_iam_policy_document" "lambda_assume_role" {
+data "aws_iam_policy_document" "slack_ai_chatbot_lambda_assume_role" {
   statement {
     effect  = "Allow"
     actions = ["sts:AssumeRole"]
@@ -17,8 +14,7 @@ data "aws_iam_policy_document" "lambda_assume_role" {
   }
 }
 
-# カスタムポリシードキュメントの定義
-data "aws_iam_policy_document" "lambda_basic_execution" {
+data "aws_iam_policy_document" "slack_ai_chatbot" {
   statement {
     sid       = "loggroup"
     effect    = "Allow"
@@ -43,28 +39,25 @@ data "aws_iam_policy_document" "lambda_basic_execution" {
     effect  = "Allow"
     actions = ["sqs:SendMessage"]
     resources = [
-      aws_sqs_queue.this.arn
+      aws_sqs_queue.slack_ai_chatbot.arn
     ]
   }
 }
 
-# IAMポリシーリソース
-resource "aws_iam_policy" "lambda_basic_execution" {
+resource "aws_iam_policy" "slack_ai_chatbot" {
   name   = "${local.project_name}-lambda-basic-execution-policy"
-  path   = "/service-role/"
-  policy = data.aws_iam_policy_document.lambda_basic_execution.json
+  policy = data.aws_iam_policy_document.slack_ai_chatbot.json
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
-  role       = aws_iam_role.slack_bolt_app_role.name
-  policy_arn = aws_iam_policy.lambda_basic_execution.arn
+resource "aws_iam_role_policy_attachment" "slack_ai_chatbot" {
+  role       = aws_iam_role.slack_ai_chatbot.name
+  policy_arn = aws_iam_policy.slack_ai_chatbot.arn
 }
 
 # ==========================================================================================
 # IAMロールの定義
 resource "aws_iam_role" "slack_bolt_app_bedrock_backend_role" {
   name               = "${local.project_name}-bedrock-backend-role"
-  path               = "/service-role/"
   assume_role_policy = data.aws_iam_policy_document.lambda_bedrock_assume_role.json
 }
 
@@ -91,7 +84,7 @@ data "aws_iam_policy_document" "lambda_bedrock_backend" {
       "sqs:DeleteMessage"
     ]
     resources = [
-      aws_sqs_queue.this.arn
+      aws_sqs_queue.slack_ai_chatbot.arn
     ]
   }
 

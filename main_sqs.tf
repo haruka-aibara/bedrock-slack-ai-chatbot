@@ -1,4 +1,3 @@
-# SQSキューリソースの定義
-resource "aws_sqs_queue" "this" {
+resource "aws_sqs_queue" "slack_ai_chatbot" {
   name = "${local.project_name}-queue"
 }
