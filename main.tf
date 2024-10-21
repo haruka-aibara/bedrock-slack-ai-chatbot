@@ -15,10 +15,3 @@ module "bedrock_backend" {
   slack_signing_secret = var.slack_signing_secret
   queue_arn            = aws_sqs_queue.this.arn
 }
-
-module "api_gateway" {
-  source = "./modules/api_gateway"
-
-  integration_uri      = module.slack_bolt_app.lambda_function_arn
-  lambda_function_name = module.slack_bolt_app.lambda_function_name
-}
