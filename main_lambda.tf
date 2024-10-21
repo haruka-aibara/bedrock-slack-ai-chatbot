@@ -22,7 +22,6 @@ resource "aws_lambda_function" "slack_ai_chatbot" {
       SLACK_BOT_TOKEN      = var.slack_bot_token
       SLACK_SIGNING_SECRET = var.slack_signing_secret
       BACKEND_QUEUE        = "${local.project_name}-queue"
-      ACCOUNT_ID           = data.aws_caller_identity.current.account_id
     }
   }
 }
