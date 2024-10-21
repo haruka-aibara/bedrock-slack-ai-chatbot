@@ -1,10 +1,15 @@
 import json
+import logging
 import os
 import re
 
 import boto3
 from slack_bolt import App
 from slack_bolt.adapter.aws_lambda import SlackRequestHandler
+
+# ロガーの設定
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 sqs = boto3.client("sqs")
 

@@ -1,8 +1,13 @@
 import json
+import logging
 import os
 
 import boto3
 from slack_sdk import WebClient
+
+# ロガーの設定
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 region = os.environ.get("AWS_REGION")
 
