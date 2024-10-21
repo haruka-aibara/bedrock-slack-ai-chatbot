@@ -30,7 +30,7 @@ data "aws_iam_policy_document" "slack_ai_chatbot" {
       "logs:PutLogEvents"
     ]
     resources = [
-      aws_cloudwatch_log_group.slack_ai_chatbot.arn
+      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${aws_lambda_function.slack_ai_chatbot.function_name}:*"
     ]
   }
 
@@ -114,7 +114,7 @@ data "aws_iam_policy_document" "bedrock_backend" {
       "logs:PutLogEvents"
     ]
     resources = [
-      aws_cloudwatch_log_group.bedrock_backend.arn
+      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${aws_lambda_function.slack_bolt_app_bedrock_backend.function_name}:*"
     ]
   }
 }
