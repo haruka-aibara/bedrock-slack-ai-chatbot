@@ -55,7 +55,6 @@ def lambda_handler(event, context):
     body = json.loads(event["Records"][0]["body"])
     channel_id = body.get("channel_id")
     input_text = body.get("input_text")
-    logger.info("test")
 
     # 入力テキストが空でないかチェック
     if not input_text or input_text.strip() == "":

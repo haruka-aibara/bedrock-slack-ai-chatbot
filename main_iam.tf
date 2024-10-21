@@ -114,7 +114,7 @@ data "aws_iam_policy_document" "bedrock_backend" {
       "logs:PutLogEvents"
     ]
     resources = [
-      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.project_name}-bedrock-backend:*"
+      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.project_name}_bedrock-backend:*"
     ]
   }
 }
