@@ -9,7 +9,7 @@ from slack_bolt.adapter.aws_lambda import SlackRequestHandler
 sqs = boto3.client("sqs")
 
 aws_account_id = os.environ.get("ACCOUNT_ID")
-region = os.environ.get("REGION")
+region = os.environ.get("AWS_REGION")
 queue = os.environ.get("BACKEND_QUEUE")
 
 sqs_queue_url = f"https://sqs.{region}.amazonaws.com/{aws_account_id}/{queue}"

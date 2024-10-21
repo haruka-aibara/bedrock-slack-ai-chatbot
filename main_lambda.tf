@@ -23,7 +23,6 @@ resource "aws_lambda_function" "slack_ai_chatbot" {
       SLACK_SIGNING_SECRET = var.slack_signing_secret
       BACKEND_QUEUE        = "${local.project_name}-queue"
       ACCOUNT_ID           = data.aws_caller_identity.current.account_id
-      REGION               = data.aws_region.current.name
     }
   }
 }
@@ -53,7 +52,6 @@ resource "aws_lambda_function" "slack_bolt_app_bedrock_backend" {
   environment {
     variables = {
       SLACK_BOT_TOKEN = var.slack_bot_token
-      REGION          = data.aws_region.current.name
     }
   }
 }

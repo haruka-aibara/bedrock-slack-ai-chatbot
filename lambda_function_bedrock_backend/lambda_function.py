@@ -4,7 +4,7 @@ import os
 import boto3
 from slack_sdk import WebClient
 
-region = os.environ.get("REGION")
+region = os.environ.get("AWS_REGION")
 
 bedrock_runtime = boto3.client("bedrock-runtime", region_name=region)
 
