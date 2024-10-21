@@ -30,10 +30,10 @@ resource "aws_lambda_function" "slack_ai_chatbot" {
 
 resource "aws_lambda_layer_version" "bedrock" {
   filename                 = data.archive_file.lambda_bedrock_layer_zip.output_path
-  layer_name               = local.project_name
+  layer_name               = "${local.project_name}_bedrock-backend"
   compatible_runtimes      = ["python3.12"]
   compatible_architectures = ["x86_64"]
-  description              = "lambda layer for ${local.project_name}"
+  description              = "lambda layer for ${local.project_name} bedrock backend"
 }
 
 # Bedrock Backend
