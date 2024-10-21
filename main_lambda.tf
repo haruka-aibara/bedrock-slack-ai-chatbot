@@ -21,7 +21,7 @@ resource "aws_lambda_function" "slack_ai_chatbot" {
     variables = {
       SLACK_BOT_TOKEN      = var.slack_bot_token
       SLACK_SIGNING_SECRET = var.slack_signing_secret
-      BACKEND_QUEUE        = "${local.project_name}-queue"
+      BACKEND_QUEUE_URL    = aws_sqs_queue.slack_ai_chatbot.url
     }
   }
 }
