@@ -1,8 +1,8 @@
 # HTTP API Gatewayの作成
 resource "aws_apigatewayv2_api" "slack_bot_api" {
-  name          = "slack-bolt-app"
+  name          = "${local.project_name}-api-gateway"
   protocol_type = "HTTP"
-  description   = "HTTP API for Slack Bot Application"
+  description   = "HTTP API for ${local.project_name}"
 }
 
 # Lambda統合の設定
