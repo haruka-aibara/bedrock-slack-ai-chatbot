@@ -9,11 +9,11 @@ from slack_sdk import WebClient
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-region = os.environ.get("AWS_REGION")
-
-bedrock_runtime = boto3.client("bedrock-runtime", region_name=region)
+bedrock_runtime = boto3.client("bedrock-runtime")
 
 client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
+
+logger.info("test")
 
 
 # Bedrockを使って応答テキストを生成する

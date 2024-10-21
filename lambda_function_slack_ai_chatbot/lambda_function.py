@@ -13,10 +13,6 @@ logger.setLevel(logging.INFO)
 
 sqs = boto3.client("sqs")
 
-# aws_account_id = boto3.client("sts").get_caller_identity()["Account"]
-# region = os.environ.get("AWS_REGION")
-# queue = os.environ.get("BACKEND_QUEUE_URL")
-
 sqs_queue_url = os.environ.get("BACKEND_QUEUE_URL")
 
 # アプリの初期化
