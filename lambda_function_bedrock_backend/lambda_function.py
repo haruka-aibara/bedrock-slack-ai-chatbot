@@ -13,8 +13,6 @@ bedrock_runtime = boto3.client("bedrock-runtime")
 
 client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
 
-logger.info("test")
-
 
 # Bedrockを使って応答テキストを生成する
 def generate_answer(input_text):
@@ -57,6 +55,7 @@ def lambda_handler(event, context):
     body = json.loads(event["Records"][0]["body"])
     channel_id = body.get("channel_id")
     input_text = body.get("input_text")
+    logger.info("test")
 
     # 入力テキストが空でないかチェック
     if not input_text or input_text.strip() == "":
