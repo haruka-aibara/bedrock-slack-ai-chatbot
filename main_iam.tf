@@ -1,5 +1,5 @@
 resource "aws_iam_role" "slack_ai_chatbot" {
-  name               = "${local.project_name}-role"
+  name               = "${local.project_name}_role"
   assume_role_policy = data.aws_iam_policy_document.slack_ai_chatbot_lambda_assume_role.json
 }
 
@@ -45,7 +45,7 @@ data "aws_iam_policy_document" "slack_ai_chatbot" {
 }
 
 resource "aws_iam_policy" "slack_ai_chatbot" {
-  name   = "${local.project_name}-lambda-basic-execution-policy"
+  name   = "${local.project_name}_policy"
   policy = data.aws_iam_policy_document.slack_ai_chatbot.json
 }
 
@@ -56,13 +56,13 @@ resource "aws_iam_role_policy_attachment" "slack_ai_chatbot" {
 
 # ==========================================================================================
 # IAMロールの定義
-resource "aws_iam_role" "slack_bolt_app_bedrock_backend_role" {
-  name               = "${local.project_name}-bedrock-backend-role"
-  assume_role_policy = data.aws_iam_policy_document.lambda_bedrock_assume_role.json
+resource "aws_iam_role" "bedrock_backend" {
+  name               = "${local.project_name}_bedrock-backend-role"
+  assume_role_policy = data.aws_iam_policy_document.bedrock_backend_lambda_assume_role.json
 }
 
 # Lambda用のAssume Role Policyを定義するデータブロック
-data "aws_iam_policy_document" "lambda_bedrock_assume_role" {
+data "aws_iam_policy_document" "bedrock_backend_lambda_assume_role" {
   statement {
     effect  = "Allow"
     actions = ["sts:AssumeRole"]
@@ -74,7 +74,7 @@ data "aws_iam_policy_document" "lambda_bedrock_assume_role" {
 }
 
 # カスタムポリシードキュメントの定義
-data "aws_iam_policy_document" "lambda_bedrock_backend" {
+data "aws_iam_policy_document" "bedrock_backend" {
   statement {
     sid    = "sqs"
     effect = "Allow"
@@ -120,12 +120,12 @@ data "aws_iam_policy_document" "lambda_bedrock_backend" {
 }
 
 # IAMポリシーリソース
-resource "aws_iam_policy" "lambda_bedrock_backend" {
-  name   = "${local.project_name}-lambda-bedrock-backend-policy"
-  policy = data.aws_iam_policy_document.lambda_bedrock_backend.json
+resource "aws_iam_policy" "bedrock_backend" {
+  name   = "${local.project_name}_bedrock-backend-policy"
+  policy = data.aws_iam_policy_document.bedrock_backend.json
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_bedrock_backend" {
-  role       = aws_iam_role.slack_bolt_app_bedrock_backend_role.name
-  policy_arn = aws_iam_policy.lambda_bedrock_backend.arn
+  role       = aws_iam_role.bedrock_backend.name
+  policy_arn = aws_iam_policy.bedrock_backend.arn
 }

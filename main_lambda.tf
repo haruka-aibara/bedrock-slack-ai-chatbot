@@ -44,7 +44,7 @@ resource "aws_lambda_function" "slack_bolt_app_bedrock_backend" {
   runtime          = "python3.12"
   architectures    = ["x86_64"]
   source_code_hash = data.archive_file.lambda_bedrock_code.output_base64sha256
-  role             = aws_iam_role.slack_bolt_app_bedrock_backend_role.arn
+  role             = aws_iam_role.bedrock_backend.arn
   layers           = [aws_lambda_layer_version.bedrock.arn]
   timeout          = 30
 
