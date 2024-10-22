@@ -26,7 +26,7 @@ app = App(
 # Slackイベントハンドラー：Slackアプリがメンションされた時
 @app.event("app_mention")
 def handle_app_mention_events(event, say):
-    _ = say(text="少々お待ちください...")
+    # _ = say(text="少々お待ちください...")
 
     channel_id = event["channel"]
     input_text = re.sub("<@.+>", "", event["text"]).strip()
