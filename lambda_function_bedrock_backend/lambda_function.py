@@ -24,6 +24,7 @@ def generate_answer(input_text):
             "content": input_text,
         },
     ]
+    logger.info(messages)
 
     # リクエストBODYをセット
     request_body = json.dumps(
@@ -33,6 +34,7 @@ def generate_answer(input_text):
             "max_tokens": 1000,
         }
     )
+    logger.info(request_body)
 
     # Bedrock APIを呼び出す
     response = bedrock_runtime.invoke_model(
@@ -41,10 +43,12 @@ def generate_answer(input_text):
         contentType="application/json",
         body=request_body,
     )
+    logger.info(response)
 
     # レスポンスBODYから応答テキストを取り出す
     response_body = json.loads(response.get("body").read())
     output_text = response_body.get("content")[0].get("text")
+    logger.info(output_text)
 
     # 応答テキストを戻り値として返す
     return output_text
