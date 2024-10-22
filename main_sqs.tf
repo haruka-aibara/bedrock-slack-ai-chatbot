@@ -8,7 +8,8 @@ resource "aws_sqs_queue" "slack_ai_chatbot" {
 }
 
 resource "aws_sqs_queue" "slack_ai_chatbot_dlq" {
-  name = "${local.project_name}-dead-letter-queue"
+  name                      = "${local.project_name}-dead-letter-queue"
+  message_retention_seconds = 60
 }
 
 resource "aws_sqs_queue_redrive_allow_policy" "slack_ai_chatbot_redrive_allow_policy" {
