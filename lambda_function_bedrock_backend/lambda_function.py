@@ -56,6 +56,8 @@ def lambda_handler(event, context):
     channel_id = body.get("channel_id")
     input_text = body.get("input_text")
 
+    logger.info(f"channel_id: {channel_id}")
+    logger.info(f"input_text: {input_text}")
     # 入力テキストが空でないかチェック
     if not input_text or input_text.strip() == "":
         error_message = "入力テキストが空です。有効なテキストを入力してください。"
@@ -67,6 +69,7 @@ def lambda_handler(event, context):
 
     # Bedrockを呼び出して入力テキストに対する応答テキストを生成する
     output_text = generate_answer(input_text)
+    logger.info(f"output_text: {output_text}")
 
     # Slackへ応答テキストを書き込む
     _ = client.chat_postMessage(
