@@ -9,7 +9,8 @@ from slack_sdk import WebClient
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-bedrock_runtime = boto3.client("bedrock-runtime")
+region = os.environ.get("AWS_REGION")
+bedrock_runtime = boto3.client("bedrock-runtime", region_name=region)
 
 client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
 
