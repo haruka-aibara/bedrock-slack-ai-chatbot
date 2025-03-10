@@ -37,7 +37,7 @@ def generate_answer(input_text):
 
     # Bedrock APIを呼び出す
     response = bedrock_runtime.invoke_model(
-        modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+        modelId="apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
         accept="application/json",
         contentType="application/json",
         body=request_body,
