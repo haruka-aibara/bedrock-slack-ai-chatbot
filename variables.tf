@@ -25,7 +25,7 @@ variable "slack_signing_secret" {
 variable "bedrock_model_id" {
   description = "Bedrock model ID to use for chat responses"
   type        = string
-  default     = "anthropic.claude-3-7-sonnet-20250219-v1:0"
+  default     = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
 }
 
 variable "bedrock_max_tokens" {
