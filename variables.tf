@@ -7,7 +7,7 @@ variable "env" {
 variable "region" {
   description = "AWS region"
   type        = string
-  default     = "ap-northeast-1"
+  default     = "us-east-1"
 }
 
 variable "slack_bot_token" {
@@ -25,7 +25,7 @@ variable "slack_signing_secret" {
 variable "bedrock_model_id" {
   description = "Bedrock model ID to use for chat responses"
   type        = string
-  default     = "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
+  default     = "anthropic.claude-3-7-sonnet-20250219-v1:0"
 }
 
 variable "bedrock_max_tokens" {
