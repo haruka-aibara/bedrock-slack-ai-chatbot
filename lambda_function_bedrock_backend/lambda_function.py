@@ -7,18 +7,24 @@ sending responses back to Slack.
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict
 
 import boto3
-from botocore.response import StreamingBody
 from slack_sdk import WebClient
 
 # Configure logger
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Initialize clients
-bedrock_runtime = boto3.client("bedrock-runtime")
+# Type annotation for boto3 clients
+if TYPE_CHECKING:
+    from mypy_boto3_bedrock_runtime import BedrockRuntimeClient
+
+    bedrock_runtime: BedrockRuntimeClient = boto3.client("bedrock-runtime")
+else:
+    bedrock_runtime = boto3.client("bedrock-runtime")
+
+# Initialize Slack client
 client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
 
 
@@ -73,7 +79,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     AWS Lambda function handler to process SQS events.
 
     Args:
-        event: AWS Lambda event data containing SQS messages
+        event: AWS Lambda event data from SQS
         context: AWS Lambda context object
 
     Returns:

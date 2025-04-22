@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Callable, Dict
+from typing import TYPE_CHECKING, Any, Callable, Dict
 
 import boto3
 from slack_bolt import App
@@ -17,11 +17,16 @@ from slack_bolt.adapter.aws_lambda import SlackRequestHandler
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Initialize AWS SQS client
-sqs = boto3.client("sqs")
+# Type annotation for boto3 clients
+if TYPE_CHECKING:
+    from mypy_boto3_sqs import SQSClient
+
+    sqs: SQSClient = boto3.client("sqs")
+else:
+    sqs = boto3.client("sqs")
 
 # Get SQS queue URL from environment variable
-sqs_queue_url = os.environ.get("BACKEND_QUEUE_URL")
+sqs_queue_url = os.environ.get("BACKEND_QUEUE_URL", "")
 
 # Initialize Slack Bolt app
 app = App(
