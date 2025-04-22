@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+from typing import Any, Callable, Dict
 
 import boto3
 from slack_bolt import App
@@ -31,14 +32,14 @@ app = App(
 
 
 @app.event("app_mention")
-def handle_app_mention_events(event, say):
+def handle_app_mention_events(event: Dict[str, Any], say: Callable) -> None:
     """
     Handler for when the Slack app is mentioned.
     Extracts the message text and sends it to SQS for processing.
-    
+
     Args:
-        event (dict): The Slack event data
-        say (callable): Function to send a message to Slack
+        event: The Slack event data containing message information
+        say: Function to send a message to Slack
     """
     # Get channel ID from event
     channel_id = event["channel"]
@@ -58,16 +59,16 @@ def handle_app_mention_events(event, say):
     )
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     AWS Lambda function handler to process API Gateway events.
-    
+
     Args:
-        event (dict): AWS Lambda event data
-        context (object): AWS Lambda context
-        
+        event: AWS Lambda event data from API Gateway
+        context: AWS Lambda context object
+
     Returns:
-        dict: Response from Slack handler
+        Response from Slack handler with appropriate status code and body
     """
     slack_handler = SlackRequestHandler(app=app)
     return slack_handler.handle(event, context)

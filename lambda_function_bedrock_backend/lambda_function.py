@@ -7,8 +7,10 @@ sending responses back to Slack.
 import json
 import logging
 import os
+from typing import Any, Dict, List, Optional, Union
 
 import boto3
+from botocore.response import StreamingBody
 from slack_sdk import WebClient
 
 # Configure logger
@@ -20,15 +22,15 @@ bedrock_runtime = boto3.client("bedrock-runtime")
 client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
 
 
-def generate_answer(input_text):
+def generate_answer(input_text: str) -> str:
     """
     Generate a response text using Amazon Bedrock with the provided input.
-    
+
     Args:
-        input_text (str): The text input to process
-        
+        input_text: The text input to process
+
     Returns:
-        str: The generated response text
+        The generated response text
     """
     # Set messages
     messages = [
@@ -66,16 +68,16 @@ def generate_answer(input_text):
     return output_text
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     AWS Lambda function handler to process SQS events.
-    
+
     Args:
-        event (dict): AWS Lambda event data
-        context (object): AWS Lambda context
-        
+        event: AWS Lambda event data containing SQS messages
+        context: AWS Lambda context object
+
     Returns:
-        dict: Response with status code and message
+        Response with status code and message
     """
     # Extract information from SQS queue
     body = json.loads(event["Records"][0]["body"])
