@@ -47,7 +47,9 @@ resource "aws_lambda_function" "slack_bolt_app_bedrock_backend" {
 
   environment {
     variables = {
-      SLACK_BOT_TOKEN = var.slack_bot_token
+      SLACK_BOT_TOKEN    = var.slack_bot_token
+      BEDROCK_MODEL_ID   = var.bedrock_model_id
+      BEDROCK_MAX_TOKENS = var.bedrock_max_tokens
     }
   }
 }

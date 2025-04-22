@@ -7,25 +7,25 @@ sending responses back to Slack.
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict
+from typing import Any, Dict
 
-import boto3
+from boto3_utils import get_bedrock_runtime_client
 from slack_sdk import WebClient
 
 # Configure logger
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Type annotation for boto3 clients
-if TYPE_CHECKING:
-    from mypy_boto3_bedrock_runtime import BedrockRuntimeClient
-
-    bedrock_runtime: BedrockRuntimeClient = boto3.client("bedrock-runtime")
-else:
-    bedrock_runtime = boto3.client("bedrock-runtime")
-
-# Initialize Slack client
+# Initialize clients
+bedrock_runtime = get_bedrock_runtime_client()
 client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
+
+# Get model ID from environment variable with default fallback
+DEFAULT_MODEL_ID = "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
+MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID)
+
+# Get max tokens from environment variable with default fallback
+MAX_TOKENS = int(os.environ.get("BEDROCK_MAX_TOKENS", "1000"))
 
 
 def generate_answer(input_text: str) -> str:
@@ -52,14 +52,14 @@ def generate_answer(input_text: str) -> str:
         {
             "messages": messages,
             "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1000,
+            "max_tokens": MAX_TOKENS,
         }
     )
     logger.info("Request body: %s", request_body)
 
     # Call Bedrock API
     response = bedrock_runtime.invoke_model(
-        modelId="apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
+        modelId=MODEL_ID,
         accept="application/json",
         contentType="application/json",
         body=request_body,
