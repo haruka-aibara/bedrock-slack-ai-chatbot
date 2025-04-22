@@ -1,3 +1,9 @@
+"""
+lambda_function_bedrock_backend/lambda_function.py
+This module handles processing text input through Amazon Bedrock and
+sending responses back to Slack.
+"""
+
 import json
 import logging
 import os
@@ -5,27 +11,35 @@ import os
 import boto3
 from slack_sdk import WebClient
 
-# ロガーの設定
+# Configure logger
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Initialize clients
 bedrock_runtime = boto3.client("bedrock-runtime")
-
 client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
 
 
-# Bedrockを使って応答テキストを生成する
 def generate_answer(input_text):
-    # メッセージをセット
+    """
+    Generate a response text using Amazon Bedrock with the provided input.
+    
+    Args:
+        input_text (str): The text input to process
+        
+    Returns:
+        str: The generated response text
+    """
+    # Set messages
     messages = [
         {
             "role": "user",
             "content": input_text,
         },
     ]
-    logger.info(messages)
+    logger.info("Input messages: %s", messages)
 
-    # リクエストBODYをセット
+    # Set request body
     request_body = json.dumps(
         {
             "messages": messages,
@@ -33,36 +47,45 @@ def generate_answer(input_text):
             "max_tokens": 1000,
         }
     )
-    logger.info(request_body)
+    logger.info("Request body: %s", request_body)
 
-    # Bedrock APIを呼び出す
+    # Call Bedrock API
     response = bedrock_runtime.invoke_model(
         modelId="apac.anthropic.claude-3-5-sonnet-20241022-v2:0",
         accept="application/json",
         contentType="application/json",
         body=request_body,
     )
-    logger.info(response)
+    logger.info("Received response from Bedrock")
 
-    # レスポンスBODYから応答テキストを取り出す
+    # Extract response text
     response_body = json.loads(response.get("body").read())
     output_text = response_body.get("content")[0].get("text")
-    logger.info(output_text)
+    logger.info("Output text: %s", output_text)
 
-    # 応答テキストを戻り値として返す
     return output_text
 
 
-# Lambdaイベントハンドラー
 def lambda_handler(event, context):
-    # SQSキューから情報を取り出す
+    """
+    AWS Lambda function handler to process SQS events.
+    
+    Args:
+        event (dict): AWS Lambda event data
+        context (object): AWS Lambda context
+        
+    Returns:
+        dict: Response with status code and message
+    """
+    # Extract information from SQS queue
     body = json.loads(event["Records"][0]["body"])
     channel_id = body.get("channel_id")
     input_text = body.get("input_text")
 
-    logger.info(f"channel_id: {channel_id}")
-    logger.info(f"input_text: {input_text}")
-    # 入力テキストが空でないかチェック
+    logger.info("Processing request - channel_id: %s", channel_id)
+    logger.info("Processing request - input_text: %s", input_text)
+
+    # Check if input text is empty
     if not input_text or input_text.strip() == "":
         error_message = "入力テキストが空です。有効なテキストを入力してください。"
         client.chat_postMessage(
@@ -71,12 +94,12 @@ def lambda_handler(event, context):
         )
         return {"statusCode": 400, "body": json.dumps("Empty input text")}
 
-    # Bedrockを呼び出して入力テキストに対する応答テキストを生成する
+    # Generate response using Bedrock
     output_text = generate_answer(input_text)
-    logger.info(f"output_text: {output_text}")
+    logger.info("Generated output_text: %s", output_text)
 
-    # Slackへ応答テキストを書き込む
-    _ = client.chat_postMessage(
+    # Send response to Slack
+    client.chat_postMessage(
         channel=channel_id,
         text=output_text,
     )
