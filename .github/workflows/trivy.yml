@@ -1,48 +1,106 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-name: trivy
+name: Terraform Security Scan
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
   pull_request:
-    # The branches below must be a subset of the branches above
-    branches: [ "main" ]
+    branches: [main]
+  # Optional: Add scheduled scans
   schedule:
-    - cron: '28 16 * * 2'
+    - cron: "0 0 * * 0" # Run weekly at midnight on Sunday
 
 permissions:
   contents: read
+  pull-requests: write # Required for commenting on PRs
 
 jobs:
-  build:
-    permissions:
-      contents: read # for actions/checkout to fetch code
-      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
-      actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
-    name: Build
+  terraform-security-scan:
+    name: Terraform Security Scan
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for all tags and branches
 
-      # - name: Build an image from Dockerfile
-      #   run: |
-      #     docker build -t docker.io/my-organization/my-app:${{ github.sha }} .
+      - name: Setup Trivy
+        uses: aquasecurity/setup-trivy@v0.2.2
+        with:
+          cache: true
+          version: latest # You can specify a version like v0.58.1 if needed
+
+      - name: Find all Terraform files
+        id: find-tf-files
+        run: |
+          echo "found_files=$(find . -type f -name "*.tf" | wc -l)" >> $GITHUB_OUTPUT
+          echo "Found $(find . -type f -name "*.tf" | wc -l) Terraform files"
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        id: trivy-scan
+        uses: aquasecurity/trivy-action@0.29.0
         with:
-          image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
-          format: 'template'
-          template: '@/contrib/sarif.tpl'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
+          scan-type: "fs" # Filesystem scan
+          scan-ref: "." # Scan the entire repository
+          format: "sarif" # Use SARIF format for GitHub code scanning
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH,MEDIUM,LOW"
+          # Optional: Use a config file for more customization
+          # trivy-config: trivy.yaml
+          # Optional: Skip specific paths (like examples)
+          # skip-dirs: "examples,tests"
+          skip-setup-trivy: true # We used the separate setup step for caching
 
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Create human-readable report
+        run: |
+          trivy config . --format table --output trivy-report.txt
+          echo "## Terraform Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "<details><summary>Click to expand full scan results</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat trivy-report.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
+      # Optional: Upload SARIF results to GitHub Security
+      - name: Upload Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always() # Always run this step even if previous steps fail
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: "trivy-results.sarif"
+          category: "terraform-security"
+
+      # Optional: Comment on PR with results
+      - name: Comment PR with scan results
+        if: github.event_name == 'pull_request' && steps.find-tf-files.outputs.found_files != '0'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            try {
+              const reportContent = fs.readFileSync('trivy-report.txt', 'utf8');
+              const delimiter = '----------------------------------------';
+              
+              // Extract just the summary and critical/high findings to keep comment size manageable
+              const lines = reportContent.split('\n');
+              let summary = [];
+              for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes('CRITICAL') || lines[i].includes('HIGH')) {
+                  summary.push(lines[i]);
+                }
+              }
+              
+              const reportSummary = summary.length > 0 ? 
+                `### ⚠️ Security issues found in Terraform files:\n\n\`\`\`\n${summary.join('\n')}\n\`\`\`` : 
+                '### ✅ No critical or high severity issues found in Terraform files';
+                
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## Terraform Security Scan Results\n\n${reportSummary}\n\nSee workflow run for complete details.`
+              });
+            } catch (error) {
+              console.error('Failed to comment on PR:', error);
+            }
