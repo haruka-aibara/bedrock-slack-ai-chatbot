@@ -1,0 +1,14 @@
+[project]
+name = "bedrock-slack-ai-chatbot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.38.8",
+    "boto3-stubs>=1.38.8",
+    "mypy-boto3-bedrock-runtime>=1.38.4",
+    "mypy-boto3-sqs>=1.38.0",
+    "slack-bolt>=1.23.0",
+    "slack-sdk>=3.35.0",
+]
