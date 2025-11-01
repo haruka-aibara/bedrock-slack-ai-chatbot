@@ -9,9 +9,10 @@ import os
 import re
 from typing import Any, Callable, Dict
 
-from boto3_utils import get_sqs_client
 from slack_bolt import App
 from slack_bolt.adapter.aws_lambda import SlackRequestHandler
+
+from boto3_utils import get_sqs_client
 
 # Configure logger
 logger = logging.getLogger()

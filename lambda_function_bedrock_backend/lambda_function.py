@@ -9,8 +9,9 @@ import logging
 import os
 from typing import Any, Dict
 
-from boto3_utils import get_bedrock_runtime_client
 from slack_sdk import WebClient
+
+from boto3_utils import get_bedrock_runtime_client
 
 # Configure logger
 logger = logging.getLogger()
@@ -20,9 +21,11 @@ logger.setLevel(logging.INFO)
 bedrock_runtime = get_bedrock_runtime_client()
 client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
 
-# Get model ID from environment variable with default fallback
-DEFAULT_MODEL_ID = "apac.anthropic.claude-3-5-sonnet-20241022-v2:0"
-MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID)
+# Get model ID from environment variable
+_model_id = os.environ.get("BEDROCK_MODEL_ID")
+if not _model_id:
+    raise ValueError("BEDROCK_MODEL_ID environment variable is not set")
+MODEL_ID: str = _model_id
 
 # Get max tokens from environment variable with default fallback
 MAX_TOKENS = int(os.environ.get("BEDROCK_MAX_TOKENS", "1000"))
@@ -67,14 +70,17 @@ def generate_answer(input_text: str) -> str:
     logger.info("Received response from Bedrock")
 
     # Extract response text
-    response_body = json.loads(response.get("body").read())
+    response_body_raw = response.get("body")
+    if response_body_raw is None:
+        raise ValueError("Response body is None")
+    response_body = json.loads(response_body_raw.read())
     output_text = response_body.get("content")[0].get("text")
     logger.info("Output text: %s", output_text)
 
     return output_text
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def lambda_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     """
     AWS Lambda function handler to process SQS events.
 
