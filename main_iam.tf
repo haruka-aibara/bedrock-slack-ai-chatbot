@@ -19,7 +19,7 @@ data "aws_iam_policy_document" "slack_ai_chatbot" {
     sid       = "loggroup"
     effect    = "Allow"
     actions   = ["logs:CreateLogGroup"]
-    resources = ["arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"]
+    resources = ["arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:*"]
   }
 
   statement {
@@ -30,7 +30,7 @@ data "aws_iam_policy_document" "slack_ai_chatbot" {
       "logs:PutLogEvents"
     ]
     resources = [
-      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${aws_lambda_function.slack_ai_chatbot.function_name}:*"
+      "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${aws_lambda_function.slack_ai_chatbot.function_name}:*"
     ]
   }
 
@@ -99,7 +99,7 @@ data "aws_iam_policy_document" "bedrock_backend" {
     sid       = "loggroup"
     effect    = "Allow"
     actions   = ["logs:CreateLogGroup"]
-    resources = ["arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"]
+    resources = ["arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:*"]
   }
 
   statement {
@@ -110,7 +110,7 @@ data "aws_iam_policy_document" "bedrock_backend" {
       "logs:PutLogEvents"
     ]
     resources = [
-      "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${aws_lambda_function.slack_bolt_app_bedrock_backend.function_name}:*"
+      "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${aws_lambda_function.slack_bolt_app_bedrock_backend.function_name}:*"
     ]
   }
 }
