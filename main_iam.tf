@@ -96,6 +96,16 @@ data "aws_iam_policy_document" "bedrock_backend" {
   }
 
   statement {
+    sid    = "marketplace"
+    effect = "Allow"
+    actions = [
+      "aws-marketplace:ViewSubscriptions"
+    ]
+    resources = [
+      "*"
+    ]
+
+  statement {
     sid       = "loggroup"
     effect    = "Allow"
     actions   = ["logs:CreateLogGroup"]
