@@ -7,7 +7,8 @@ import json
 import logging
 import os
 import re
-from typing import Any, Callable, Dict
+from collections.abc import Callable
+from typing import Any
 
 from slack_bolt import App
 from slack_bolt.adapter.aws_lambda import SlackRequestHandler
@@ -33,7 +34,7 @@ app = App(
 
 
 @app.event("app_mention")
-def handle_app_mention_events(event: Dict[str, Any], say: Callable) -> None:
+def handle_app_mention_events(event: dict[str, Any], say: Callable) -> None:
     """
     Handler for when the Slack app is mentioned.
     Extracts the message text and sends it to SQS for processing.
@@ -60,7 +61,7 @@ def handle_app_mention_events(event: Dict[str, Any], say: Callable) -> None:
     )
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """
     AWS Lambda function handler to process API Gateway events.
 

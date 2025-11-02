@@ -7,7 +7,8 @@ sending responses back to Slack.
 import json
 import logging
 import os
-from typing import Any, Dict
+from collections.abc import Callable
+from typing import Any
 
 from slack_sdk import WebClient
 
@@ -80,7 +81,7 @@ def generate_answer(input_text: str) -> str:
     return output_text
 
 
-def lambda_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
+def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     """
     AWS Lambda function handler to process SQS events.
 
