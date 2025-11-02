@@ -104,6 +104,7 @@ data "aws_iam_policy_document" "bedrock_backend" {
     resources = [
       "*"
     ]
+  }
 
   statement {
     sid       = "loggroup"
