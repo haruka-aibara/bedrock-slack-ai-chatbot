@@ -99,7 +99,8 @@ data "aws_iam_policy_document" "bedrock_backend" {
     sid    = "marketplace"
     effect = "Allow"
     actions = [
-      "aws-marketplace:ViewSubscriptions"
+      "aws-marketplace:ViewSubscriptions",
+      "aws-marketplace:Subscribe",
     ]
     resources = [
       "*"
