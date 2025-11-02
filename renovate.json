@@ -2,20 +2,5 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:base"
-  ],
-  "terraform": {
-    "enabled": true
-  },
-  "packageRules": [
-    {
-      "matchManagers": ["terraform"],
-      "groupName": "Terraform Provider updates",
-      "labels": ["terraform", "infrastructure"]
-    },
-    {
-      "matchPackagePatterns": ["^hashicorp/aws$"],
-      "groupName": "AWS Provider updates",
-      "labels": ["terraform", "aws", "provider"]
-    }
   ]
 }
