@@ -95,17 +95,18 @@ data "aws_iam_policy_document" "bedrock_backend" {
     ]
   }
 
-  statement {
-    sid    = "marketplace"
-    effect = "Allow"
-    actions = [
-      "aws-marketplace:ViewSubscriptions",
-      "aws-marketplace:Subscribe",
-    ]
-    resources = [
-      "*"
-    ]
-  }
+  # 新しいモデルを使用する場合は、以下の statement を有効化が必要な場合があります。
+  # statement {
+  #   sid    = "marketplace"
+  #   effect = "Allow"
+  #   actions = [
+  #     "aws-marketplace:ViewSubscriptions",
+  #     "aws-marketplace:Subscribe",
+  #   ]
+  #   resources = [
+  #     "*"
+  #   ]
+  # }
 
   statement {
     sid       = "loggroup"
