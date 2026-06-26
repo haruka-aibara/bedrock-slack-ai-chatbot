@@ -30,7 +30,7 @@ data "aws_iam_policy_document" "slack_ai_chatbot" {
       "logs:PutLogEvents"
     ]
     resources = [
-      "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${aws_lambda_function.slack_ai_chatbot.function_name}:*"
+      "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.project_name}:*"
     ]
   }
 
@@ -39,7 +39,7 @@ data "aws_iam_policy_document" "slack_ai_chatbot" {
     effect  = "Allow"
     actions = ["sqs:SendMessage"]
     resources = [
-      aws_sqs_queue.slack_ai_chatbot.arn
+      "arn:aws:sqs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:${local.project_name}-queue"
     ]
   }
 }
@@ -80,7 +80,7 @@ data "aws_iam_policy_document" "bedrock_backend" {
       "sqs:DeleteMessage"
     ]
     resources = [
-      aws_sqs_queue.slack_ai_chatbot.arn
+      "arn:aws:sqs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:${local.project_name}-queue"
     ]
   }
 
@@ -109,6 +109,18 @@ data "aws_iam_policy_document" "bedrock_backend" {
   }
 
   statement {
+    sid    = "dynamodb"
+    effect = "Allow"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+    ]
+    resources = [
+      "arn:aws:dynamodb:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:table/${local.project_name}-conversation-history"
+    ]
+  }
+
+  statement {
     sid       = "loggroup"
     effect    = "Allow"
     actions   = ["logs:CreateLogGroup"]
@@ -123,7 +135,7 @@ data "aws_iam_policy_document" "bedrock_backend" {
       "logs:PutLogEvents"
     ]
     resources = [
-      "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${aws_lambda_function.slack_bolt_app_bedrock_backend.function_name}:*"
+      "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.project_name}_bedrock-backend:*"
     ]
   }
 }
