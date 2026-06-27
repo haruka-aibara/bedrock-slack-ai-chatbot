@@ -1,0 +1,11 @@
+# Managed by Terraform (haruka-aibara/haruka-aibara). Do not edit directly.
+name: Python CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    uses: haruka-aibara/github-actions/.github/workflows/python-ci.yml@main
