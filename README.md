@@ -10,22 +10,22 @@ This Project was created with reference to the following:
 
 ```mermaid
 flowchart LR
-    User -->|@mention| Slack
+    User -->|"@mention"| Slack
 
     subgraph AWS
         APIGW[API Gateway]
-        LambdaFront[Lambda\nslack-ai-chatbot]
+        LambdaFront[Lambda: slack-ai-chatbot]
         SQS[SQS]
-        LambdaBack[Lambda\nbedrock-backend]
-        DynamoDB[(DynamoDB\nconversation history)]
-        Bedrock[Amazon Bedrock\nClaude]
+        LambdaBack[Lambda: bedrock-backend]
+        DynamoDB[(DynamoDB: conversation history)]
+        Bedrock[Amazon Bedrock: Claude]
     end
 
     Slack -->|Event| APIGW
     APIGW --> LambdaFront
     LambdaFront -->|Enqueue| SQS
     SQS -->|Trigger| LambdaBack
-    LambdaBack <-->|Read / Write| DynamoDB
+    LambdaBack <-->|Read/Write| DynamoDB
     LambdaBack -->|Invoke| Bedrock
     LambdaBack -->|Reply in thread| Slack
 ```
