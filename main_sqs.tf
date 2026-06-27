@@ -5,11 +5,13 @@ resource "aws_sqs_queue" "slack_ai_chatbot" {
     maxReceiveCount     = 1
   })
   message_retention_seconds = 60
+  sqs_managed_sse_enabled   = true
 }
 
 resource "aws_sqs_queue" "slack_ai_chatbot_dlq" {
   name                      = "${local.project_name}-dead-letter-queue"
   message_retention_seconds = 60
+  sqs_managed_sse_enabled   = true
 }
 
 resource "aws_sqs_queue_redrive_allow_policy" "slack_ai_chatbot_redrive_allow_policy" {

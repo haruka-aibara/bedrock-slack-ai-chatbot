@@ -22,12 +22,6 @@ variable "slack_signing_secret" {
   sensitive   = true
 }
 
-variable "bedrock_model_id" {
-  description = "Bedrock model ID to use for chat responses"
-  type        = string
-  default     = "anthropic.claude-opus-4-6-v1"
-}
-
 variable "bedrock_max_tokens" {
   description = "Maximum number of tokens to generate in Bedrock responses"
   type        = number

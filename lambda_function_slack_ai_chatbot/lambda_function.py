@@ -46,6 +46,9 @@ def handle_app_mention_events(event: dict[str, Any], say: Callable) -> None:
     # Get channel ID from event
     channel_id = event["channel"]
 
+    # thread_ts: use existing thread root if in a thread, otherwise this message becomes the root
+    thread_ts = event.get("thread_ts", event["ts"])
+
     # Remove the app mention pattern from text and strip whitespace
     input_text = re.sub(r"<@[A-Z0-9]+>", "", event["text"]).strip()
 
@@ -55,6 +58,7 @@ def handle_app_mention_events(event: dict[str, Any], say: Callable) -> None:
         MessageBody=json.dumps(
             {
                 "channel_id": channel_id,
+                "thread_ts": thread_ts,
                 "input_text": input_text,
             }
         ),
