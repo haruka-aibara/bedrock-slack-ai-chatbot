@@ -6,9 +6,29 @@ Functions as an HTTP API server using API Gateway.
 This Project was created with reference to the following:
 [Amazon BedrockとSlackで生成AIチャットボットアプリを作る (その2：Lambda＋API Gatewayで動かす)](https://dev.classmethod.jp/articles/amazon-bedrock-slack-chat-bot-part2/)
 
-### Architecture-Diagram
-![image](https://github.com/user-attachments/assets/dcab2590-68ab-4d53-a8cf-896108f6cd89)
-Source: https://dev.classmethod.jp/articles/amazon-bedrock-slack-chat-bot-part2/#toc-step-3-bedrock
+### Architecture Diagram
+
+```mermaid
+flowchart TD
+    User -->|"@mention"| Slack
+
+    subgraph AWS
+        APIGW[API Gateway]
+        LambdaFront[Lambda: slack-ai-chatbot]
+        SQS[SQS]
+        LambdaBack[Lambda: bedrock-backend]
+        DynamoDB[(DynamoDB: conversation history)]
+        Bedrock[Amazon Bedrock: Claude]
+    end
+
+    Slack -->|Event| APIGW
+    APIGW --> LambdaFront
+    LambdaFront -->|Enqueue| SQS
+    SQS -->|Trigger| LambdaBack
+    LambdaBack <-->|Read/Write| DynamoDB
+    LambdaBack -->|Invoke| Bedrock
+    LambdaBack -->|Reply in thread| Slack
+```
 ***
 ### Resources Created
 When you Terraform Apply this project, it creates the resources and configurations within the 'AWS Cloud' shown in the architecture diagram.
