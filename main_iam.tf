@@ -91,11 +91,11 @@ data "aws_iam_policy_document" "bedrock_backend" {
       "bedrock:InvokeModel"
     ]
     resources = [
-      "*"
+      aws_bedrock_inference_profile.claude_opus_4_6.arn
     ]
   }
 
-  # 新しいモデルを使用する場合は、以下の statement を有効化が必要な場合があります。
+  # aws-marketplace actions do not support resource-level permissions; "*" is required by AWS.
   statement {
     sid    = "marketplace"
     effect = "Allow"
@@ -103,9 +103,7 @@ data "aws_iam_policy_document" "bedrock_backend" {
       "aws-marketplace:ViewSubscriptions",
       "aws-marketplace:Subscribe",
     ]
-    resources = [
-      "*"
-    ]
+    resources = ["*"] #trivy:ignore:AVD-AWS-0057
   }
 
   statement {
