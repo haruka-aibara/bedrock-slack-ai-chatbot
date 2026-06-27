@@ -9,7 +9,7 @@ This Project was created with reference to the following:
 ### Architecture Diagram
 
 ```mermaid
-flowchart LR
+flowchart TD
     User -->|"@mention"| Slack
 
     subgraph AWS
