@@ -22,6 +22,10 @@ resource "aws_apigatewayv2_stage" "slack_ai_chatbot" {
   api_id      = aws_apigatewayv2_api.slack_ai_chatbot.id
   name        = "$default"
   auto_deploy = true
+
+  access_log_settings {
+    destination_arn = "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/apigateway/${local.project_name}"
+  }
 }
 
 resource "aws_lambda_permission" "slack_ai_chatbot" {
