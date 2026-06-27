@@ -1,7 +1,7 @@
 # bedrock-slack-ai-chatbot
-A Slack AI chatbot application using Amazon Bedrock for single question-and-answer format without continuous conversation history
+A Slack AI chatbot application using Amazon Bedrock with thread-based conversation history.
 
-Functions as an HTTP API server using API Gateway
+Functions as an HTTP API server using API Gateway.
 ***
 This Project was created with reference to the following:
 [Amazon BedrockとSlackで生成AIチャットボットアプリを作る (その2：Lambda＋API Gatewayで動かす)](https://dev.classmethod.jp/articles/amazon-bedrock-slack-chat-bot-part2/)
@@ -17,13 +17,25 @@ When you Terraform Apply this project, it creates the resources and configuratio
  - Lambda Function
  - Bedrock
  - SQS
+ - DynamoDB (conversation history)
 
 For the variables SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET, use the values from your own Slack App.
 ***
 ## How To Use
 
-**Mention @app_name to get a response.**
-![image](https://github.com/user-attachments/assets/e81fcbce-7f46-4b91-9257-50a5902e3bb8)
+**Mention @app_name to start a conversation.**
+
+The bot replies in-thread and remembers the conversation context within that thread. Mention @app_name again in the same thread to continue the conversation.
+
+```
+You:  @bot Pythonのリスト内包表記って何？
+Bot:  [スレッドに返信] リスト内包表記は...
+
+You:  (スレッド内) @bot じゃあ辞書版は？
+Bot:  (スレッド内) 辞書内包表記は...  ← 前の文脈を踏まえて回答
+```
+
+Conversation history is stored per thread in DynamoDB and automatically expires after 7 days.
 
 ***
 ## Installation Guide
@@ -43,7 +55,7 @@ For the variables SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET, use the values from yo
  - Option A: set variable in HCP Terraform
 
    ```hcl
-   slack_bot_token     = "your-slack-bot-token"
+   slack_bot_token      = "your-slack-bot-token"
    slack_signing_secret = "your-slack-signing-secret"
    ```
  - Option B: Local environment, e.g., Ubuntu
