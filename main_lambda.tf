@@ -15,7 +15,11 @@ resource "aws_lambda_function" "slack_ai_chatbot" {
   source_code_hash = data.archive_file.lambda_code.output_base64sha256
   role             = aws_iam_role.slack_ai_chatbot.arn
   layers           = [aws_lambda_layer_version.slack_ai_chatbot.arn]
-  timeout          = 3
+  # Slack gives the endpoint 3 seconds, but a timeout set to exactly that means a cold
+  # start is killed mid-enqueue and the question is lost entirely. Finishing the
+  # enqueue is worth more than matching Slack's deadline: retried deliveries are
+  # recognised and dropped by the handler.
+  timeout = 10
 
   environment {
     variables = {
@@ -59,4 +63,11 @@ resource "aws_lambda_function" "slack_bolt_app_bedrock_backend" {
 resource "aws_lambda_event_source_mapping" "bedrock" {
   event_source_arn = aws_sqs_queue.slack_ai_chatbot.arn
   function_name    = aws_lambda_function.slack_bolt_app_bedrock_backend.arn
+
+  # Bedrock quotas are far lower than Lambda's default concurrency. Without a cap a
+  # burst of mentions fans out, every call is throttled at once, and the retries pile
+  # up behind an already-throttled model.
+  scaling_config {
+    maximum_concurrency = 5
+  }
 }

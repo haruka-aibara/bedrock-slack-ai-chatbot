@@ -58,6 +58,59 @@ Bot:  (スレッド内) 辞書内包表記は...  ← 前の文脈を踏まえ�
 Conversation history is stored per thread in DynamoDB and automatically expires after 7 days.
 
 ***
+## Why the queue
+
+Slack gives an event endpoint 3 seconds to respond, and a Bedrock call takes far longer,
+so the answer has to be produced outside the request. SQS carries that handoff rather
+than an asynchronous Lambda invoke because Bedrock quotas are much lower than Lambda's
+default concurrency: the event source mapping's `maximum_concurrency` caps how many
+requests reach the model at once, `maxReceiveCount` plus the visibility timeout give
+throttled requests a real retry, and the dead-letter queue keeps whatever still failed.
+
+The pieces that keep it honest, and what breaks without each:
+
+| Setting | Value | Without it |
+|---|---|---|
+| `visibility_timeout_seconds` | 180 (6x the function timeout) | A slow invocation has its message redelivered while still running, and the thread gets two answers |
+| `message_retention_seconds` (queue) | 900 | A backlog silently deletes the question |
+| `message_retention_seconds` (DLQ) | 14 days | Failures vanish before anyone can look at them |
+| `maxReceiveCount` | 3 | A hard failure never reaches the handler, so nobody tells the user |
+| `maximum_concurrency` | 5 | A burst fans out and every call is throttled at once |
+
+### Where retries actually happen
+
+Queue redelivery cannot arrive sooner than the visibility timeout, which makes it
+useless for *answering*: by the time the message comes back, the answer is 180 seconds
+late and nobody wants it. So the two kinds of retry are separated.
+
+- **Throttling is retried inside the invocation.** The Bedrock client runs in adaptive
+  retry mode, which backs off in seconds and keeps the answer timely. This is the only
+  retry that ever produces an answer.
+- **Queue redelivery exists to inform, not to answer.** The backend refuses to answer a
+  question older than `ANSWER_DEADLINE_SECONDS` (60) and posts a short "I gave up"
+  message in the thread instead.
+
+That is why retention is generous while the deadline is tight. They are not the same
+knob: retention only decides when a message disappears with nobody noticing, and the
+deadline decides whether an answer is still worth having. A question that ages out is
+never answered late and never silently dropped — the thread is told once.
+
+Delivery is at-least-once at two points, and both are handled in code rather than
+assumed away:
+
+- **Slack retries** a delivery it thinks failed. The frontend recognises the
+  `X-Slack-Retry-Num` header, acknowledges, and enqueues nothing.
+- **SQS redelivers.** The frontend forwards Slack's `event_id`; the backend takes an
+  expiring claim on it in DynamoDB before doing any work, and releases the claim if
+  processing fails so the retry is allowed through.
+
+Within a thread, the history item carries a `version` and is written conditionally, so
+two mentions racing each other cannot erase one another's turn — the loser fails and is
+retried against fresh state. The reply is posted to Slack *before* the turn is recorded:
+saving first would mean a failed post retries against a history that already contains
+the answer, appending the user's question to the thread twice.
+
+***
 ## Installation Guide
 
 ### Prerequisites
@@ -136,7 +189,7 @@ no credentials, no network and no LocalStack are needed.
 | File | Covers |
 |------|--------|
 | `tests/test_slack_ai_chatbot_lambda.py` | mention parsing, thread root resolution, the SQS payload |
-| `tests/test_bedrock_backend_lambda.py` | conversation history in DynamoDB, the Bedrock request/response, history trimming, empty input |
+| `tests/test_bedrock_backend_lambda.py` | conversation history in DynamoDB, the Converse request/response, history trimming, empty input, idempotency claims, version conflicts |
 
 Tests live at the repository root rather than inside the Lambda directories on purpose:
 `lambda_function_slack_ai_chatbot/` and `lambda_function_bedrock_backend/` are zipped

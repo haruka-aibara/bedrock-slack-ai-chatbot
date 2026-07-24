@@ -13,8 +13,9 @@ resource "aws_apigatewayv2_integration" "slack_ai_chatbot" {
 }
 
 resource "aws_apigatewayv2_route" "slack_ai_chatbot" {
-  api_id    = aws_apigatewayv2_api.slack_ai_chatbot.id
-  route_key = "ANY /slack/events"
+  api_id = aws_apigatewayv2_api.slack_ai_chatbot.id
+  # Slack only ever POSTs events here; ANY would expose the handler to every verb.
+  route_key = "POST /slack/events"
   target    = "integrations/${aws_apigatewayv2_integration.slack_ai_chatbot.id}"
 }
 
