@@ -72,10 +72,28 @@ The pieces that keep it honest, and what breaks without each:
 | Setting | Value | Without it |
 |---|---|---|
 | `visibility_timeout_seconds` | 180 (6x the function timeout) | A slow invocation has its message redelivered while still running, and the thread gets two answers |
-| `message_retention_seconds` (queue) | 900 | A burst of throttling silently deletes the question |
+| `message_retention_seconds` (queue) | 900 | A backlog silently deletes the question |
 | `message_retention_seconds` (DLQ) | 14 days | Failures vanish before anyone can look at them |
-| `maxReceiveCount` | 3 | One transient `ThrottlingException` parks the question |
+| `maxReceiveCount` | 3 | A hard failure never reaches the handler, so nobody tells the user |
 | `maximum_concurrency` | 5 | A burst fans out and every call is throttled at once |
+
+### Where retries actually happen
+
+Queue redelivery cannot arrive sooner than the visibility timeout, which makes it
+useless for *answering*: by the time the message comes back, the answer is 180 seconds
+late and nobody wants it. So the two kinds of retry are separated.
+
+- **Throttling is retried inside the invocation.** The Bedrock client runs in adaptive
+  retry mode, which backs off in seconds and keeps the answer timely. This is the only
+  retry that ever produces an answer.
+- **Queue redelivery exists to inform, not to answer.** The backend refuses to answer a
+  question older than `ANSWER_DEADLINE_SECONDS` (60) and posts a short "I gave up"
+  message in the thread instead.
+
+That is why retention is generous while the deadline is tight. They are not the same
+knob: retention only decides when a message disappears with nobody noticing, and the
+deadline decides whether an answer is still worth having. A question that ages out is
+never answered late and never silently dropped — the thread is told once.
 
 Delivery is at-least-once at two points, and both are handled in code rather than
 assumed away:

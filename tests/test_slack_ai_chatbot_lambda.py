@@ -5,6 +5,7 @@ them onto SQS for the Bedrock backend.
 """
 
 import json
+import time
 from types import ModuleType
 from unittest import mock
 
@@ -47,11 +48,12 @@ class TestHandleAppMentionEvents:
 
         frontend.handle_app_mention_events(event, body=slack_body(), say=mock.Mock())
 
-        assert sent_body(frontend) == {
+        assert sent_body(frontend) | {"enqueued_at": 0} == {
             "channel_id": "C0000000001",
             "thread_ts": "1700000000.000100",
             "input_text": "Pythonのリスト内包表記って何？",
             "event_id": "Ev0000000001",
+            "enqueued_at": 0,
         }
 
     def test_forwards_the_event_id_so_the_backend_can_deduplicate(self, frontend: ModuleType) -> None:
@@ -63,6 +65,13 @@ class TestHandleAppMentionEvents:
         frontend.handle_app_mention_events(mention_event("<@U0BOT> hi"), body={}, say=mock.Mock())
 
         assert sent_body(frontend)["event_id"] == ""
+
+    def test_stamps_the_enqueue_time_so_the_backend_can_judge_staleness(self, frontend: ModuleType) -> None:
+        before = int(time.time())
+
+        frontend.handle_app_mention_events(mention_event("<@U0BOT> hi"), body=slack_body(), say=mock.Mock())
+
+        assert before <= sent_body(frontend)["enqueued_at"] <= int(time.time())
 
     def test_strips_the_mention_and_surrounding_whitespace(self, frontend: ModuleType) -> None:
         frontend.handle_app_mention_events(mention_event("  <@U0BOT>   質問です  "), body=slack_body(), say=mock.Mock())

@@ -43,7 +43,11 @@ def sent_conversation(backend: ModuleType) -> list[dict[str, str]]:
     ]
 
 
-def mention(input_text: str = "内包表記とは？", event_id: str = EVENT_ID) -> dict[str, Any]:
+def mention(
+    input_text: str = "内包表記とは？",
+    event_id: str = EVENT_ID,
+    age_seconds: int = 0,
+) -> dict[str, Any]:
     """Build the SQS event the frontend Lambda enqueues for a mention."""
     return sqs_event(
         {
@@ -51,6 +55,7 @@ def mention(input_text: str = "内包表記とは？", event_id: str = EVENT_ID)
             "thread_ts": THREAD_TS,
             "input_text": input_text,
             "event_id": event_id,
+            "enqueued_at": int(time.time()) - age_seconds,
         }
     )
 
@@ -489,6 +494,52 @@ class TestLambdaHandlerDeduplicates:
 
         assert backend.lambda_handler(event, None)["statusCode"] == 200
         backend.slack_client.chat_postMessage.assert_called_once()
+
+
+class TestLambdaHandlerEnforcesTheAnswerDeadline:
+    @pytest.fixture(autouse=True)
+    def _bedrock_answers(self, backend: ModuleType) -> None:
+        backend.conversation_table.get_item.return_value = {}
+        backend.bedrock_runtime.converse.return_value = bedrock_response("answer")
+
+    def test_answers_a_question_that_is_still_fresh(self, backend: ModuleType) -> None:
+        backend.lambda_handler(mention(age_seconds=backend.ANSWER_DEADLINE_SECONDS - 5), None)
+
+        backend.bedrock_runtime.converse.assert_called_once()
+
+    def test_does_not_answer_a_question_that_aged_out(self, backend: ModuleType) -> None:
+        # A late answer is noise in the thread, so it is never generated at all.
+        backend.lambda_handler(mention(age_seconds=backend.ANSWER_DEADLINE_SECONDS + 5), None)
+
+        backend.bedrock_runtime.converse.assert_not_called()
+        backend.conversation_table.put_item.assert_called_once()  # the claim, not a saved turn
+
+    def test_tells_the_thread_it_gave_up_instead_of_going_quiet(self, backend: ModuleType) -> None:
+        backend.lambda_handler(mention(age_seconds=backend.ANSWER_DEADLINE_SECONDS + 5), None)
+
+        backend.slack_client.chat_postMessage.assert_called_once_with(
+            channel=CHANNEL_ID,
+            thread_ts=THREAD_TS,
+            text=backend.DEADLINE_MESSAGE,
+        )
+
+    def test_consumes_the_message_so_the_user_is_told_only_once(self, backend: ModuleType) -> None:
+        result = backend.lambda_handler(mention(age_seconds=backend.ANSWER_DEADLINE_SECONDS + 5), None)
+
+        assert result["statusCode"] == 200
+
+    def test_deadline_is_shorter_than_the_queue_visibility_timeout(self, backend: ModuleType) -> None:
+        # A redelivery cannot arrive before the visibility timeout, so it is always past
+        # the deadline. That is intentional: the retry exists to inform, not to answer.
+        assert backend.ANSWER_DEADLINE_SECONDS < backend.CLAIM_TTL_SECONDS
+
+    def test_answers_a_message_that_predates_the_timestamp(self, backend: ModuleType) -> None:
+        # Messages enqueued before enqueued_at was added must not all look expired.
+        event = sqs_event({"channel_id": CHANNEL_ID, "thread_ts": THREAD_TS, "input_text": "hi"})
+
+        backend.lambda_handler(event, None)
+
+        backend.bedrock_runtime.converse.assert_called_once()
 
 
 class TestLambdaHandlerHandlesConcurrentTurns:

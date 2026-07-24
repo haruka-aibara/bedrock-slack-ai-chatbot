@@ -51,6 +51,16 @@ MAX_HISTORY_CHARACTERS = 24000
 # Conversation TTL: 7 days
 CONVERSATION_TTL_SECONDS = 7 * 24 * 60 * 60
 
+# How stale a question may be and still be worth answering. An answer that lands long
+# after the question was asked is noise in the thread, so past this point the bot says
+# it gave up instead. Note this is deliberately shorter than the queue's visibility
+# timeout: a redelivery is always too late to answer, and its job is to make sure the
+# user is told something rather than left waiting on silence.
+ANSWER_DEADLINE_SECONDS = 60
+
+# Shown in-thread when a question aged out before it could be answered.
+DEADLINE_MESSAGE = "回答に時間がかかりすぎたため中断しました。もう一度メンションしてください。"
+
 # Idempotency claims are stored in the conversation table under a prefixed key. Slack
 # thread timestamps are numeric, so a prefixed key can never collide with a real thread.
 CLAIM_KEY_PREFIX = "event#"
@@ -219,6 +229,14 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     if event_id and not claim_event(event_id):
         logger.info("Skipping Slack event %s, already claimed by another invocation", event_id)
         return {"statusCode": 200, "body": json.dumps("Duplicate event skipped")}
+
+    enqueued_at = body.get("enqueued_at")
+    if enqueued_at is not None and int(time.time()) - int(enqueued_at) > ANSWER_DEADLINE_SECONDS:
+        # Say so rather than answering late or dropping the question in silence. The
+        # message is consumed, so the user is told exactly once.
+        logger.warning("Question aged out after %ss, answering with the deadline message", ANSWER_DEADLINE_SECONDS)
+        slack_client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, text=DEADLINE_MESSAGE)
+        return {"statusCode": 200, "body": json.dumps("Question expired")}
 
     try:
         # Load conversation history and append new user message

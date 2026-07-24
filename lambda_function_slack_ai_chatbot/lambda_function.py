@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -53,8 +54,10 @@ def handle_app_mention_events(event: dict[str, Any], body: dict[str, Any], say: 
     # Remove the app mention pattern from text and strip whitespace
     input_text = re.sub(r"<@[A-Z0-9]+>", "", event["text"]).strip()
 
-    # Send message to SQS for processing. event_id identifies this delivery, and the
-    # backend uses it to recognise a message SQS hands it more than once.
+    # Send message to SQS for processing. event_id identifies this delivery so the
+    # backend can recognise a message SQS hands it more than once, and enqueued_at lets
+    # it tell a question worth answering from one that has been sitting in the queue so
+    # long the answer would only confuse the thread.
     sqs.send_message(
         QueueUrl=sqs_queue_url,
         MessageBody=json.dumps(
@@ -63,6 +66,7 @@ def handle_app_mention_events(event: dict[str, Any], body: dict[str, Any], say: 
                 "thread_ts": thread_ts,
                 "input_text": input_text,
                 "event_id": body.get("event_id", ""),
+                "enqueued_at": int(time.time()),
             }
         ),
     )
