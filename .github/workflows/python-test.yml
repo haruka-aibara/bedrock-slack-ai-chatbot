@@ -1,0 +1,27 @@
+name: Python Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pytest:
+    name: pytest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        # --locked fails the build if uv.lock is stale rather than silently re-resolving.
+        run: uv sync --locked
+
+      - name: Run tests
+        run: uv run pytest

@@ -6,7 +6,9 @@ terraform {
     }
   }
 
-  required_version = "1.15.7"
+  # Pessimistic constraint, not an exact pin: HCP Terraform upgrades the workspace's
+  # patch version on its own, and an exact pin fails `terraform init` every time it does.
+  required_version = "~> 1.15.7"
 
   required_providers {
     aws = {

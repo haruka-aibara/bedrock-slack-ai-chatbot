@@ -9,6 +9,19 @@ PR / push で以下の CI が走る。コードを書いたら必ず通ること
 | Terraform fmt | `terraform fmt -recursive -check` | 差分があると exit 1 |
 | tflint | `tflint -f compact` | warning でも exit 2 |
 | Trivy | `trivy config .` | HIGH/CRITICAL で exit 1 |
+| ruff | `uvx ruff check .` | Python Test 以外は再利用ワークフロー呼び出し |
+| pytest | `uv run pytest` | `.github/workflows/python-test.yml` |
+
+`.github/workflows/python-ci.yml` と `terraform-ci.yml` は別リポジトリ (haruka-aibara/haruka-aibara) の Terraform が生成しているので直接編集しない。このリポジトリ固有のチェックを足すときは `python-test.yml` のような別ファイルを追加する。
+
+### Python コードを変更したら必ずやること
+
+```bash
+uv run pytest
+uvx ruff check .
+```
+
+テストは `tests/` に置く。Lambda のソースディレクトリ (`lambda_function_*/`) は `data.archive_file` で zip 化されるので、テストファイルを混ぜない。混ぜると `source_code_hash` が変わって無関係な再デプロイが走る。
 
 ### Terraform ファイルを変更したら必ずやること
 

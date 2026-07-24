@@ -13,9 +13,19 @@ dependencies = [
     "slack-sdk>=3.35.0",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
+
 [tool.ruff]
 line-length = 120
 target-version = "py313"
+# Vendored third-party code shipped as Lambda layers — not ours to lint.
+exclude = [
+    "lambda_layer_bedrock_backend",
+    "lambda_layer_slack_ai_chatbot",
+]
 
 [tool.ruff.lint]
 select = [
@@ -32,4 +42,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["boto3_utils"]
+known-first-party = ["boto3_utils", "conftest"]
+
+[tool.pytest.ini_options]
+# Only collect our own tests — the vendored layer directories must never be imported.
+testpaths = ["tests"]
+addopts = "-q --strict-markers --strict-config"

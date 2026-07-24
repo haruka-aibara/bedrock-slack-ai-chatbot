@@ -115,3 +115,44 @@ Conversation history is stored per thread in DynamoDB and automatically expires 
 8. Save the Slack App configuration.
 
 Your Slack AI chatbot should now be ready to use!
+
+***
+## Development
+
+Dependencies are managed with [uv](https://docs.astral.sh/uv/).
+
+```bash
+uv sync            # create .venv and install runtime + dev dependencies
+uv run pytest      # run the test suite
+uvx ruff check .   # lint
+```
+
+### Tests
+
+`tests/` holds unit tests for both Lambda handlers. They run entirely offline — every
+AWS and Slack client is replaced with a mock before the handler module is imported, so
+no credentials, no network and no LocalStack are needed.
+
+| File | Covers |
+|------|--------|
+| `tests/test_slack_ai_chatbot_lambda.py` | mention parsing, thread root resolution, the SQS payload |
+| `tests/test_bedrock_backend_lambda.py` | conversation history in DynamoDB, the Bedrock request/response, history trimming, empty input |
+
+Tests live at the repository root rather than inside the Lambda directories on purpose:
+`lambda_function_slack_ai_chatbot/` and `lambda_function_bedrock_backend/` are zipped
+verbatim by `data.archive_file`, so anything added there would ship to production and
+change `source_code_hash`.
+
+### CI
+
+Every pull request runs:
+
+| Workflow | Check | Source |
+|----------|-------|--------|
+| Python Test | `uv run pytest` | `.github/workflows/python-test.yml` (this repo) |
+| Python CI | `uvx ruff check .` | reusable workflow, managed by Terraform |
+| Terraform CI | `terraform fmt` / `tflint` / `trivy` | reusable workflow, managed by Terraform |
+
+To make a green build the condition for merging, add the check names `pytest`, `lint`
+and the Terraform CI jobs as **required status checks** on the `main` branch under
+*Settings → Branches → Branch protection rules*.
