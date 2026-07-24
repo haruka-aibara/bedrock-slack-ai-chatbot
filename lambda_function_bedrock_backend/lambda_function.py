@@ -66,6 +66,22 @@ def save_conversation_history(thread_ts: str, messages: list[dict[str, str]]) ->
     )
 
 
+def trim_history(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Keep only the most recent messages so long threads do not overflow the context.
+
+    Bedrock's Anthropic Messages API rejects a conversation whose first message is not
+    from the user, so a window that would start on an assistant reply drops that reply
+    as well.
+    """
+    if len(messages) <= MAX_HISTORY_MESSAGES:
+        return messages
+
+    trimmed = messages[-MAX_HISTORY_MESSAGES:]
+    if trimmed[0].get("role") != "user":
+        trimmed = trimmed[1:]
+    return trimmed
+
+
 def generate_answer(messages: list[dict[str, str]]) -> str:
     """
     Generate a response using Amazon Bedrock with full conversation history.
@@ -137,8 +153,7 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     history.append({"role": "user", "content": input_text})
 
     # Trim to keep only the most recent messages
-    if len(history) > MAX_HISTORY_MESSAGES:
-        history = history[-MAX_HISTORY_MESSAGES:]
+    history = trim_history(history)
 
     # Generate response with full conversation context
     output_text = generate_answer(history)
