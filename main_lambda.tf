@@ -55,7 +55,7 @@ resource "aws_lambda_function" "slack_bolt_app_bedrock_backend" {
       # BEDROCK_MODEL_ID         = var.bedrock_model_id
       BEDROCK_MODEL_ID    = aws_bedrock_inference_profile.claude_opus_4_6.arn
       BEDROCK_MAX_TOKENS  = var.bedrock_max_tokens
-      DYNAMODB_TABLE_NAME = aws_dynamodb_table.conversation_history.name
+      DYNAMODB_TABLE_NAME = aws_dynamodb_table.idempotency.name
     }
   }
 }

@@ -17,7 +17,7 @@ flowchart TD
         LambdaFront[Lambda: slack-ai-chatbot]
         SQS[SQS]
         LambdaBack[Lambda: bedrock-backend]
-        DynamoDB[(DynamoDB: conversation history)]
+        DynamoDB[(DynamoDB: idempotency claims)]
         Bedrock[Amazon Bedrock: Claude]
     end
 
@@ -25,8 +25,9 @@ flowchart TD
     APIGW --> LambdaFront
     LambdaFront -->|Enqueue| SQS
     SQS -->|Trigger| LambdaBack
-    LambdaBack <-->|Read/Write| DynamoDB
+    LambdaBack -->|Claim event| DynamoDB
     LambdaBack -->|Invoke| Bedrock
+    LambdaBack -->|Read thread| Slack
     LambdaBack -->|Reply in thread| Slack
 ```
 ***
@@ -37,7 +38,7 @@ When you Terraform Apply this project, it creates the resources and configuratio
  - Lambda Function
  - Bedrock
  - SQS
- - DynamoDB (conversation history)
+ - DynamoDB (idempotency claims)
 
 For the variables SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET, use the values from your own Slack App.
 ***
@@ -55,7 +56,49 @@ You:  (スレッド内) @bot じゃあ辞書版は？
 Bot:  (スレッド内) 辞書内包表記は...  ← 前の文脈を踏まえて回答
 ```
 
-Conversation history is stored per thread in DynamoDB and automatically expires after 7 days.
+The bot reads the thread it is mentioned in, so it can answer about a discussion it was
+never part of. Dropping a bare "what do you think?" into an existing thread works:
+
+```
+haruka  08:12  〇〇について語るスレ
+haruka  08:12  ロググループ保護有効化したほうがいいなー
+haruka  08:12  @bot どうおもう？
+bot     08:13  [スレッドの内容を踏まえて回答]
+```
+
+***
+## Where conversation state lives
+
+**In Slack, and nowhere else.** Context is read back from the thread with
+`conversations.replies` rather than kept in a store of its own.
+
+That is not only how the bot answers a bare "どう思う？" — it is also one source of truth
+instead of two that can drift apart. Storing history separately meant recording only the
+turns the bot took part in, so a thread where people talked among themselves was
+invisible to it, and the stored copy could disagree with what the user could plainly see.
+Reading the thread also removes the optimistic-concurrency version, the read-modify-write
+race between two mentions, and the ordering trade-off between saving and posting: there
+is no longer anything to write.
+
+DynamoDB is still there, holding idempotency claims only.
+
+### Turning a thread into a conversation
+
+Slack threads do not look like the alternating user/assistant conversation Bedrock
+wants, so the messages are reshaped:
+
+- Messages with a `bot_id` become `assistant` turns; everything else becomes `user`.
+- Consecutive messages from the same side are folded into one turn — a thread happily
+  runs five human messages in a row.
+- `<@U…>` mentions are stripped, so the model cannot echo one back and ping somebody who
+  was not part of the conversation.
+- The bot's own canned failure messages are filtered out; feeding old failures back as
+  context teaches the model to produce more of them.
+- Anything posted *after* the question is left out. While the question waited in the
+  queue the thread may have moved on.
+
+Note that this sends the whole thread to Bedrock, including messages that were not
+addressed to the bot.
 
 ***
 ## Why the queue
@@ -104,11 +147,8 @@ assumed away:
   expiring claim on it in DynamoDB before doing any work, and releases the claim if
   processing fails so the retry is allowed through.
 
-Within a thread, the history item carries a `version` and is written conditionally, so
-two mentions racing each other cannot erase one another's turn — the loser fails and is
-retried against fresh state. The reply is posted to Slack *before* the turn is recorded:
-saving first would mean a failed post retries against a history that already contains
-the answer, appending the user's question to the thread twice.
+Two mentions racing in the same thread need no coordination at all, because neither one
+writes conversation state — each reads the thread as it stands and answers.
 
 ***
 ## Installation Guide
@@ -117,6 +157,25 @@ the answer, appending the user's question to the thread twice.
 - Terraform installed on your local machine
 - AWS CLI configured with appropriate credentials
 - A Slack app created with bot token and signing secret
+
+### Required Slack bot token scopes
+
+Reading the thread for context needs a history scope, which is **not** something
+Terraform can set — it lives in the Slack app configuration, and adding it requires
+reinstalling the app to the workspace.
+
+| Scope | Needed for |
+|---|---|
+| `app_mentions:read` | receiving the mention |
+| `chat:write` | replying in the thread |
+| `channels:history` | reading thread context in public channels |
+| `groups:history` | reading thread context in private channels |
+
+Add them under *OAuth & Permissions → Bot Token Scopes*, then **Reinstall to Workspace**.
+
+Until the scope is granted, `conversations.replies` fails and the bot answers from the
+mention text alone — degraded, not broken. That is deliberate, so deploying before
+reinstalling the app does not take the bot down.
 
 ### Steps
 
@@ -189,7 +248,7 @@ no credentials, no network and no LocalStack are needed.
 | File | Covers |
 |------|--------|
 | `tests/test_slack_ai_chatbot_lambda.py` | mention parsing, thread root resolution, the SQS payload |
-| `tests/test_bedrock_backend_lambda.py` | conversation history in DynamoDB, the Converse request/response, history trimming, empty input, idempotency claims, version conflicts |
+| `tests/test_bedrock_backend_lambda.py` | reading and reshaping the Slack thread, the Converse request/response, trimming, idempotency claims, the answer deadline |
 
 Tests live at the repository root rather than inside the Lambda directories on purpose:
 `lambda_function_slack_ai_chatbot/` and `lambda_function_bedrock_backend/` are zipped

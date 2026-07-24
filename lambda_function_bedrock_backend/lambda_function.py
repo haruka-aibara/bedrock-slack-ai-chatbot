@@ -2,13 +2,20 @@
 lambda_function_bedrock_backend/lambda_function.py
 This module handles processing text input through Amazon Bedrock and
 sending responses back to Slack.
+
+Conversation context comes from the Slack thread itself rather than from a store of
+its own. The thread is what the user can see, so reading it is the only way the bot
+can answer "what do you think?" about a discussion it was not part of — and it leaves
+one source of truth instead of two that can disagree.
 """
 
 import json
 import logging
 import os
+import re
 import time
-from typing import Any, NamedTuple
+from collections import deque
+from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
@@ -34,11 +41,11 @@ MODEL_ID: str = _model_id
 # Get max tokens from environment variable with default fallback
 MAX_TOKENS = int(os.environ.get("BEDROCK_MAX_TOKENS", "1000"))
 
-# DynamoDB table for conversation history
+# DynamoDB table holding idempotency claims. It stores no conversation state; Slack does.
 _table_name = os.environ.get("DYNAMODB_TABLE_NAME")
 if not _table_name:
     raise ValueError("DYNAMODB_TABLE_NAME environment variable is not set")
-conversation_table = dynamodb.Table(_table_name)
+idempotency_table = dynamodb.Table(_table_name)
 
 # Keep at most this many messages (user+assistant pairs) to avoid token overflow
 MAX_HISTORY_MESSAGES = 20
@@ -48,8 +55,20 @@ MAX_HISTORY_MESSAGES = 20
 # a rough proxy for tokens, deliberately conservative so mixed-script threads still fit.
 MAX_HISTORY_CHARACTERS = 24000
 
-# Conversation TTL: 7 days
-CONVERSATION_TTL_SECONDS = 7 * 24 * 60 * 60
+# Bounds on reading a thread. Slack returns replies oldest first, so a long thread is
+# paged through while only the newest messages are kept — those are the ones that
+# survive trimming anyway.
+THREAD_PAGE_SIZE = 200
+MAX_THREAD_PAGES = 10
+MAX_THREAD_MESSAGES = 200
+
+# How long a claim record lives in DynamoDB before TTL removes it.
+CLAIM_ITEM_TTL_SECONDS = 24 * 60 * 60
+
+# How long a claim stays valid. Matches the queue's visibility timeout: once SQS is
+# willing to hand the message to another invocation, the previous claim is stale and
+# must not keep the retry from running.
+CLAIM_TTL_SECONDS = 180
 
 # How stale a question may be and still be worth answering. An answer that lands long
 # after the question was asked is noise in the thread, so past this point the bot says
@@ -61,26 +80,16 @@ ANSWER_DEADLINE_SECONDS = 60
 # Shown in-thread when a question aged out before it could be answered.
 DEADLINE_MESSAGE = "回答に時間がかかりすぎたため中断しました。もう一度メンションしてください。"
 
-# Idempotency claims are stored in the conversation table under a prefixed key. Slack
-# thread timestamps are numeric, so a prefixed key can never collide with a real thread.
-CLAIM_KEY_PREFIX = "event#"
+# Shown in-thread when the mention carried no question and the thread gave no context.
+EMPTY_INPUT_MESSAGE = "入力テキストが空です。有効なテキストを入力してください。"
 
-# How long a claim stays valid. Matches the queue's visibility timeout: once SQS is
-# willing to hand the message to another invocation, the previous claim is stale and
-# must not keep the retry from running.
-CLAIM_TTL_SECONDS = 180
+# The bot's own canned replies are filtered back out when reading a thread: feeding old
+# failures back as context teaches the model to produce more of them.
+CANNED_MESSAGES = frozenset({DEADLINE_MESSAGE, EMPTY_INPUT_MESSAGE})
 
-
-class ConversationState(NamedTuple):
-    """A thread's stored messages plus the version they were read at."""
-
-    messages: list[dict[str, str]]
-    version: int
-
-
-def _claim_key(event_id: str) -> dict[str, str]:
-    """Build the DynamoDB key that represents the claim on a Slack event."""
-    return {"thread_ts": f"{CLAIM_KEY_PREFIX}{event_id}"}
+# Slack renders <@U…> as a mention. Stripped from context so the model never echoes one
+# back and pings somebody who was not part of the conversation.
+MENTION_PATTERN = re.compile(r"<@[A-Z0-9]+>")
 
 
 def claim_event(event_id: str) -> bool:
@@ -95,13 +104,13 @@ def claim_event(event_id: str) -> bool:
     """
     now = int(time.time())
     try:
-        conversation_table.put_item(
+        idempotency_table.put_item(
             Item={
-                **_claim_key(event_id),
+                "event_id": event_id,
                 "claim_expires_at": now + CLAIM_TTL_SECONDS,
-                "expires_at": now + CONVERSATION_TTL_SECONDS,
+                "expires_at": now + CLAIM_ITEM_TTL_SECONDS,
             },
-            ConditionExpression="attribute_not_exists(thread_ts) OR claim_expires_at < :now",
+            ConditionExpression="attribute_not_exists(event_id) OR claim_expires_at < :now",
             ExpressionAttributeValues={":now": now},
         )
         return True
@@ -113,36 +122,77 @@ def claim_event(event_id: str) -> bool:
 
 def release_event_claim(event_id: str) -> None:
     """Give up the claim on an event so a redelivery is allowed to retry it."""
-    conversation_table.delete_item(Key=_claim_key(event_id))
+    idempotency_table.delete_item(Key={"event_id": event_id})
 
 
-def get_conversation_history(thread_ts: str) -> ConversationState:
-    """Retrieve conversation history for a thread from DynamoDB, with its version."""
-    response = conversation_table.get_item(Key={"thread_ts": thread_ts})
-    item = response.get("Item")
-    if not item:
-        return ConversationState(messages=[], version=0)
-    return ConversationState(messages=item.get("messages", []), version=int(item.get("version", 0)))
+def fetch_thread_messages(channel_id: str, thread_ts: str, latest_ts: str | None = None) -> list[dict[str, Any]]:
+    """Read a Slack thread, oldest first, keeping only the newest messages.
 
+    Messages posted after ``latest_ts`` are left out: while this question waited in the
+    queue the thread may have moved on, and answering with context the asker had not
+    written yet is confusing.
 
-def save_conversation_history(thread_ts: str, messages: list[dict[str, str]], expected_version: int) -> None:
-    """Persist conversation history for a thread to DynamoDB with TTL.
-
-    The write is conditional on the version last read. Two mentions racing in one thread
-    would otherwise both read the same history and the slower write would erase the
-    other's turn; instead the loser fails and lets SQS retry it against fresh state.
+    Requires the bot token to hold a history scope for the conversation type
+    (``channels:history`` for public channels, ``groups:history`` for private ones).
     """
-    conversation_table.put_item(
-        Item={
-            "thread_ts": thread_ts,
-            "messages": messages,
-            "version": expected_version + 1,
-            "expires_at": int(time.time()) + CONVERSATION_TTL_SECONDS,
-        },
-        ConditionExpression="attribute_not_exists(thread_ts) OR #version = :expected",
-        ExpressionAttributeNames={"#version": "version"},
-        ExpressionAttributeValues={":expected": expected_version},
-    )
+    messages: deque[dict[str, Any]] = deque(maxlen=MAX_THREAD_MESSAGES)
+    cursor: str | None = None
+
+    for _ in range(MAX_THREAD_PAGES):
+        response = slack_client.conversations_replies(
+            channel=channel_id,
+            ts=thread_ts,
+            limit=THREAD_PAGE_SIZE,
+            cursor=cursor,
+        )
+        messages.extend(response.get("messages") or [])
+
+        cursor = (response.get("response_metadata") or {}).get("next_cursor")
+        if not response.get("has_more") or not cursor:
+            break
+    else:
+        logger.warning("Thread %s longer than %s pages, using the newest messages", thread_ts, MAX_THREAD_PAGES)
+
+    if latest_ts is None:
+        return list(messages)
+    return [message for message in messages if float(message.get("ts", 0)) <= float(latest_ts)]
+
+
+def message_text(message: dict[str, Any]) -> str:
+    """Extract the usable text of a Slack message, or an empty string if it has none."""
+    if message.get("subtype") in {"channel_join", "channel_leave", "thread_broadcast_tombstone"}:
+        return ""
+    text = MENTION_PATTERN.sub("", message.get("text") or "").strip()
+    if text in CANNED_MESSAGES:
+        return ""
+    return text
+
+
+def append_turn(turns: list[dict[str, str]], role: str, text: str) -> None:
+    """Add a turn, folding it into the previous one when the speaker has not changed.
+
+    Bedrock requires user and assistant turns to alternate, but a thread happily runs
+    several human messages in a row, so consecutive messages become one turn.
+    """
+    if turns and turns[-1]["role"] == role:
+        turns[-1]["content"] = f"{turns[-1]['content']}\n{text}"
+    else:
+        turns.append({"role": role, "content": text})
+
+
+def build_conversation(messages: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Turn Slack thread messages into the alternating conversation Bedrock expects.
+
+    The bot's own messages become assistant turns and everything else becomes a user
+    turn, so a discussion the bot only just joined still reads as a conversation.
+    """
+    turns: list[dict[str, str]] = []
+    for message in messages:
+        text = message_text(message)
+        if not text:
+            continue
+        append_turn(turns, "assistant" if message.get("bot_id") else "user", text)
+    return turns
 
 
 def trim_history(messages: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -164,6 +214,29 @@ def trim_history(messages: list[dict[str, str]]) -> list[dict[str, str]]:
         trimmed = trimmed[1:]
 
     return trimmed
+
+
+def build_prompt_messages(channel_id: str, thread_ts: str, message_ts: str | None, input_text: str) -> list[dict[str, str]]:
+    """Assemble the conversation to send to Bedrock for this mention.
+
+    Falls back to the mention on its own if the thread cannot be read — a missing
+    history scope should degrade the answer, not break the bot.
+    """
+    try:
+        thread = fetch_thread_messages(channel_id, thread_ts, latest_ts=message_ts)
+    except Exception:
+        logger.warning("Could not read thread %s, answering from the mention alone", thread_ts, exc_info=True)
+        thread = []
+
+    turns = build_conversation(thread)
+
+    # Slack reads are eventually consistent, so the mention that triggered this run may
+    # not be in the thread yet. Without this the bot would answer the wrong message.
+    # A bare mention adds nothing: an empty turn is not a question Bedrock will accept.
+    if input_text.strip() and not any(message.get("ts") == message_ts for message in thread):
+        append_turn(turns, "user", input_text)
+
+    return trim_history(turns)
 
 
 def generate_answer(messages: list[dict[str, str]]) -> str:
@@ -211,20 +284,12 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     body = json.loads(event["Records"][0]["body"])
     channel_id = body.get("channel_id")
     thread_ts = body.get("thread_ts")
-    input_text = body.get("input_text")
+    message_ts = body.get("message_ts")
+    input_text = body.get("input_text") or ""
     event_id = body.get("event_id") or ""
 
     logger.info("Processing request - channel_id: %s, thread_ts: %s", channel_id, thread_ts)
     logger.info("Processing request - input_text: %s", input_text)
-
-    if not input_text or input_text.strip() == "":
-        error_message = "入力テキストが空です。有効なテキストを入力してください。"
-        slack_client.chat_postMessage(
-            channel=channel_id,
-            thread_ts=thread_ts,
-            text=error_message,
-        )
-        return {"statusCode": 400, "body": json.dumps("Empty input text")}
 
     if event_id and not claim_event(event_id):
         logger.info("Skipping Slack event %s, already claimed by another invocation", event_id)
@@ -239,26 +304,21 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         return {"statusCode": 200, "body": json.dumps("Question expired")}
 
     try:
-        # Load conversation history and append new user message
-        state = get_conversation_history(thread_ts)
-        history = trim_history([*state.messages, {"role": "user", "content": input_text}])
+        # A bare mention is still answerable when the thread has something to go on —
+        # "what do you think?" is the whole point of reading the thread.
+        messages = build_prompt_messages(channel_id, thread_ts, message_ts, input_text)
 
-        # Generate response with full conversation context
-        output_text = generate_answer(history)
+        if not messages:
+            slack_client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, text=EMPTY_INPUT_MESSAGE)
+            return {"statusCode": 400, "body": json.dumps("Empty input text")}
+
+        output_text = generate_answer(messages)
         logger.info("Generated output_text: %s", output_text)
 
-        # Reply in the same thread, then record the turn. Saving first would mean a
-        # failed post retries against a history that already contains the answer, and
-        # the user's question would be appended to the thread twice.
         slack_client.chat_postMessage(
             channel=channel_id,
             thread_ts=thread_ts,
             text=output_text,
-        )
-        save_conversation_history(
-            thread_ts,
-            [*history, {"role": "assistant", "content": output_text}],
-            state.version,
         )
     except Exception:
         # Hand the message back to SQS by dropping the claim, so the retry is not
