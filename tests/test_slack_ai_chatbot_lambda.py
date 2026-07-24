@@ -51,10 +51,24 @@ class TestHandleAppMentionEvents:
         assert sent_body(frontend) | {"enqueued_at": 0} == {
             "channel_id": "C0000000001",
             "thread_ts": "1700000000.000100",
+            "message_ts": "1700000000.000100",
             "input_text": "Pythonのリスト内包表記って何？",
             "event_id": "Ev0000000001",
             "enqueued_at": 0,
         }
+
+    def test_forwards_this_mentions_own_timestamp_separately_from_the_thread_root(
+        self, frontend: ModuleType
+    ) -> None:
+        # The backend reads the thread for context and needs to know which message is
+        # the question, so it can ignore anything posted after it.
+        event = mention_event("<@U0BOT> どうおもう？", ts="1700000999.000900", thread_ts="1700000000.000100")
+
+        frontend.handle_app_mention_events(event, body=slack_body(), say=mock.Mock())
+
+        body = sent_body(frontend)
+        assert body["thread_ts"] == "1700000000.000100"
+        assert body["message_ts"] == "1700000999.000900"
 
     def test_forwards_the_event_id_so_the_backend_can_deduplicate(self, frontend: ModuleType) -> None:
         frontend.handle_app_mention_events(mention_event("<@U0BOT> hi"), body=slack_body("Ev999"), say=mock.Mock())

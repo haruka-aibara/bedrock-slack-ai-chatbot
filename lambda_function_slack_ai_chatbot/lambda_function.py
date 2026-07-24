@@ -64,6 +64,10 @@ def handle_app_mention_events(event: dict[str, Any], body: dict[str, Any], say: 
             {
                 "channel_id": channel_id,
                 "thread_ts": thread_ts,
+                # This mention's own timestamp, distinct from the thread root. The
+                # backend reads the thread for context and uses it to ignore anything
+                # posted after the question was asked.
+                "message_ts": event["ts"],
                 "input_text": input_text,
                 "event_id": body.get("event_id", ""),
                 "enqueued_at": int(time.time()),
