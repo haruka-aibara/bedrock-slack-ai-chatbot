@@ -14,7 +14,6 @@ module, which keeps the injected mocks isolated between tests.
 """
 
 import importlib.util
-import io
 import json
 import sys
 from collections.abc import Iterator
@@ -24,6 +23,7 @@ from typing import Any
 from unittest import mock
 
 import pytest
+from botocore.exceptions import ClientError
 
 # Importing the handlers must not litter the Lambda source directories with
 # __pycache__ entries: those directories are zipped by `data.archive_file`, and stray
@@ -72,9 +72,20 @@ def sqs_event(body: dict[str, Any]) -> dict[str, Any]:
 
 
 def bedrock_response(text: str) -> dict[str, Any]:
-    """Build an ``invoke_model`` response whose streaming body yields ``text``."""
-    payload = {"content": [{"type": "text", "text": text}]}
-    return {"body": io.BytesIO(json.dumps(payload).encode())}
+    """Build a ``converse`` response carrying ``text`` as its single content block."""
+    return {
+        "output": {"message": {"role": "assistant", "content": [{"text": text}]}},
+        "usage": {"inputTokens": 10, "outputTokens": 20},
+        "stopReason": "end_turn",
+    }
+
+
+def conditional_check_failed(operation: str) -> ClientError:
+    """Build the error DynamoDB raises when a ConditionExpression is not satisfied."""
+    return ClientError(
+        {"Error": {"Code": "ConditionalCheckFailedException", "Message": "The conditional request failed"}},
+        operation,
+    )
 
 
 @pytest.fixture

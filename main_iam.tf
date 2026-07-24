@@ -117,6 +117,9 @@ data "aws_iam_policy_document" "bedrock_backend" {
     actions = [
       "dynamodb:GetItem",
       "dynamodb:PutItem",
+      # Releases the idempotency claim when processing fails, so the SQS retry is
+      # allowed to pick the message up again instead of being skipped as a duplicate.
+      "dynamodb:DeleteItem",
     ]
     resources = [
       "arn:aws:dynamodb:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:table/${local.project_name}-conversation-history"
