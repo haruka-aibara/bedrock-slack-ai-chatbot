@@ -1,7 +1,11 @@
 # bedrock-slack-ai-chatbot
-A Slack AI chatbot application using Amazon Bedrock with thread-based conversation history.
+
+A Slack AI chatbot backed by Amazon Bedrock. Mention it and it answers in the thread,
+reading the thread it was mentioned in for context — including the parts of the
+conversation it was never involved in.
 
 Functions as an HTTP API server using API Gateway.
+
 ***
 This Project was created with reference to the following:
 [Amazon BedrockとSlackで生成AIチャットボットアプリを作る (その2：Lambda＋API Gatewayで動かす)](https://dev.classmethod.jp/articles/amazon-bedrock-slack-chat-bot-part2/)
@@ -16,6 +20,7 @@ flowchart TD
         APIGW[API Gateway]
         LambdaFront[Lambda: slack-ai-chatbot]
         SQS[SQS]
+        DLQ[SQS: dead letter queue]
         LambdaBack[Lambda: bedrock-backend]
         DynamoDB[(DynamoDB: idempotency claims)]
         Bedrock[Amazon Bedrock: Claude]
@@ -25,28 +30,35 @@ flowchart TD
     APIGW --> LambdaFront
     LambdaFront -->|Enqueue| SQS
     SQS -->|Trigger| LambdaBack
+    SQS -.->|After 3 failures| DLQ
     LambdaBack -->|Claim event| DynamoDB
     LambdaBack -->|Invoke| Bedrock
     LambdaBack -->|Read thread| Slack
     LambdaBack -->|Reply in thread| Slack
 ```
+
 ***
 ### Resources Created
-When you Terraform Apply this project, it creates the resources and configurations within the 'AWS Cloud' shown in the architecture diagram.
- - API Gateway
- - Lambda Layer
- - Lambda Function
- - Bedrock
- - SQS
- - DynamoDB (idempotency claims)
 
-For the variables SLACK_BOT_TOKEN / SLACK_SIGNING_SECRET, use the values from your own Slack App.
+`terraform apply` creates everything inside the `AWS` box above:
+
+| Resource | Notes |
+|---|---|
+| API Gateway (HTTP API) | `POST /slack/events`, access logging enabled |
+| Lambda x2 + layer x2 | the Slack-facing frontend and the Bedrock backend |
+| SQS queue + dead letter queue | the async handoff between them |
+| DynamoDB table | idempotency claims only, no conversation state |
+| Bedrock inference profile | Claude, referenced by the backend Lambda |
+| IAM roles and policies | one per Lambda, scoped to the resources it touches |
+| CloudWatch log groups | one per Lambda plus one for API Gateway |
+
 ***
 ## How To Use
 
-**Mention @app_name to start a conversation.**
+**Mention @app_name and it replies in the thread.**
 
-The bot replies in-thread and remembers the conversation context within that thread. Mention @app_name again in the same thread to continue the conversation.
+Follow-ups work because the bot reads the thread each time, so it picks up both its own
+earlier replies and anything the humans said in between:
 
 ```
 You:  @bot Pythonのリスト内包表記って何？
@@ -56,8 +68,8 @@ You:  (スレッド内) @bot じゃあ辞書版は？
 Bot:  (スレッド内) 辞書内包表記は...  ← 前の文脈を踏まえて回答
 ```
 
-The bot reads the thread it is mentioned in, so it can answer about a discussion it was
-never part of. Dropping a bare "what do you think?" into an existing thread works:
+The same mechanism means you can drop a bare question into a discussion the bot was
+never part of:
 
 ```
 haruka  08:12  〇〇について語るスレ
@@ -96,6 +108,10 @@ wants, so the messages are reshaped:
   context teaches the model to produce more of them.
 - Anything posted *after* the question is left out. While the question waited in the
   queue the thread may have moved on.
+
+Speakers are not labelled. Telling them apart would need `users:read` plus a lookup per
+participant, and putting raw `<@U…>` ids in the prompt risks the model echoing a real
+ping. Folding consecutive messages covers the common single-author case.
 
 Note that this sends the whole thread to Bedrock, including messages that were not
 addressed to the bot.
@@ -175,7 +191,19 @@ Add them under *OAuth & Permissions → Bot Token Scopes*, then **Reinstall to W
 
 Until the scope is granted, `conversations.replies` fails and the bot answers from the
 mention text alone — degraded, not broken. That is deliberate, so deploying before
-reinstalling the app does not take the bot down.
+reinstalling the app does not take the bot down. The fallback logs
+`Could not read thread ...`, which is the quickest way to tell a missing scope from a
+model that simply gave a poor answer.
+
+### Terraform variables
+
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `slack_bot_token` | yes | — | Slack Bot User OAuth Token (sensitive) |
+| `slack_signing_secret` | yes | — | Slack Signing Secret (sensitive) |
+| `region` | no | `ap-northeast-1` | AWS region |
+| `env` | no | `production` | value of the `Environment` tag |
+| `bedrock_max_tokens` | no | `1000` | cap on generated tokens per reply |
 
 ### Steps
 
@@ -191,11 +219,11 @@ reinstalling the app does not take the bot down.
    slack_signing_secret = "your-slack-signing-secret"
    ```
  - Option B: Local environment, e.g., Ubuntu
-  
+
    first, Open variables.tf and change the variable names to uppercase
 
    then add env var
-   
+
    ```bash
    export SLACK_BOT_TOKEN="your-slack-bot-token"
    export SLACK_SIGNING_SECRET="your-slack-signing-secret"
@@ -223,10 +251,36 @@ reinstalling the app does not take the bot down.
    - Enable events
    - In the "Request URL" field, enter: `{your-api-endpoint}/slack/events`
      Replace `{your-api-endpoint}` with the actual API Gateway endpoint URL from step 6.
+   - Under *Subscribe to bot events*, add **`app_mention`**. Without it Slack never
+     delivers anything and the endpoint stays silent.
 
 8. Save the Slack App configuration.
 
+9. Add the bot token scopes listed above and **Reinstall to Workspace**.
+
+10. Invite the bot to the channel (`/invite @app_name`). A history scope alone does not
+    let it read a channel it is not a member of.
+
 Your Slack AI chatbot should now be ready to use!
+
+***
+## Tuning
+
+These live as module constants in `lambda_function_bedrock_backend/lambda_function.py`,
+alongside a comment explaining what each one is protecting against.
+
+| Constant | Value | What it controls |
+|---|---|---|
+| `ANSWER_DEADLINE_SECONDS` | 60 | How stale a question may be and still be answered rather than declined |
+| `MAX_HISTORY_MESSAGES` | 20 | Turns of thread context sent to Bedrock |
+| `MAX_HISTORY_CHARACTERS` | 24000 | Size cap on that context, a conservative proxy for tokens |
+| `MAX_THREAD_MESSAGES` | 200 | Newest thread messages kept while reading |
+| `MAX_THREAD_PAGES` | 10 | Pages of `conversations.replies` fetched before giving up |
+| `CLAIM_TTL_SECONDS` | 180 | How long an idempotency claim blocks a redelivery; matches the queue's visibility timeout |
+
+`ANSWER_DEADLINE_SECONDS` must stay below `CLAIM_TTL_SECONDS`, and `CLAIM_TTL_SECONDS`
+must match `visibility_timeout_seconds` on the queue. A test asserts the first
+relationship so the pair cannot silently drift apart.
 
 ***
 ## Development
@@ -237,6 +291,7 @@ Dependencies are managed with [uv](https://docs.astral.sh/uv/).
 uv sync            # create .venv and install runtime + dev dependencies
 uv run pytest      # run the test suite
 uvx ruff check .   # lint
+terraform fmt -recursive
 ```
 
 ### Tests
@@ -247,7 +302,7 @@ no credentials, no network and no LocalStack are needed.
 
 | File | Covers |
 |------|--------|
-| `tests/test_slack_ai_chatbot_lambda.py` | mention parsing, thread root resolution, the SQS payload |
+| `tests/test_slack_ai_chatbot_lambda.py` | mention parsing, thread root resolution, dropping Slack's retried deliveries, the SQS payload |
 | `tests/test_bedrock_backend_lambda.py` | reading and reshaping the Slack thread, the Converse request/response, trimming, idempotency claims, the answer deadline |
 
 Tests live at the repository root rather than inside the Lambda directories on purpose:
@@ -255,16 +310,27 @@ Tests live at the repository root rather than inside the Lambda directories on p
 verbatim by `data.archive_file`, so anything added there would ship to production and
 change `source_code_hash`.
 
+Both Lambda directories contain a module named `lambda_function`, so they cannot both be
+imported by name in one pytest session. `tests/conftest.py` loads each from its file path
+under a unique name, reloading per test so the injected mocks stay isolated.
+
 ### CI
 
-Every pull request runs:
+`main` is protected: these checks are required, so a red build cannot be merged.
 
-| Workflow | Check | Source |
-|----------|-------|--------|
-| Python Test | `uv run pytest` | `.github/workflows/python-test.yml` (this repo) |
-| Python CI | `uvx ruff check .` | reusable workflow, managed by Terraform |
-| Terraform CI | `terraform fmt` / `tflint` / `trivy` | reusable workflow, managed by Terraform |
+| Check name | Runs | Source |
+|---|---|---|
+| `pytest` | `uv run pytest` | `.github/workflows/python-test.yml` (this repo) |
+| `ci / lint` | `uvx ruff check .` | reusable workflow, managed by Terraform |
+| `ci / terraform fmt` | `terraform fmt -recursive -check` | reusable workflow, managed by Terraform |
+| `ci / tflint` | `tflint -f compact` | reusable workflow, managed by Terraform |
+| `ci / trivy (IaC misconfig)` | `trivy config .` | reusable workflow, managed by Terraform |
+| `Terraform fmt checker` | `terraform fmt -recursive -check` | `.github/workflows/github-actions.yml` (this repo) |
+| `Terraform Cloud` | speculative `terraform plan` | HCP Terraform VCS integration |
 
-To make a green build the condition for merging, add the check names `pytest`, `lint`
-and the Terraform CI jobs as **required status checks** on the `main` branch under
-*Settings → Branches → Branch protection rules*.
+`python-ci.yml` and `terraform-ci.yml` are generated by Terraform in another repository
+and must not be edited here; repo-specific checks go in their own file, as
+`python-test.yml` does.
+
+`Terraform fmt checker` duplicates `ci / terraform fmt` — it predates the reusable
+workflow and is a candidate for removal.
